@@ -7,6 +7,7 @@ from .api.v1.dashboard import router as dashboard_router
 from .api.v1.auth import router as auth_router
 from .api.v1.equipment import router as equipment_router
 from .api.v1.fuel import router as fuel_router
+from .api.v1.work_logs import router as work_logs_router
 from .core.auth import get_password_hash
 from .core.database import SessionLocal, engine
 from .models import Base, User
@@ -95,6 +96,7 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(equipment_router, prefix="/api/v1/equipment", tags=["equipment"])
 app.include_router(fuel_router, prefix="/api/v1/fuel", tags=["fuel"])
+app.include_router(work_logs_router, prefix="/api/v1/work-logs", tags=["work-logs"])
 
 @app.get('/')
 def read_root():

@@ -6,7 +6,9 @@ import EquipmentPage from './pages/EquipmentPage';
 import EmployeesPage from './pages/EmployeesPage';
 import ProjectsPage from './pages/ProjectsPage';
 import FuelPage from './pages/FuelPage';
+import WorkLogsPage from './pages/WorkLogsPage';
 import Sidebar from './components/Sidebar';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Layout dengan Sidebar untuk halaman yang memerlukan autentikasi
 const MainLayout = () => {
@@ -23,10 +25,11 @@ function App() {
       <Toaster />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route element={<MainLayout />}>
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/equipment" element={<EquipmentPage />} />
           <Route path="/fuel" element={<FuelPage />} />
+          <Route path="/work-logs" element={<WorkLogsPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
         </Route>

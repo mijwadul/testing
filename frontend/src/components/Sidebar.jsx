@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, LogOut, Truck, Users, FolderOpen, Menu, X, ChevronLeft, ChevronRight, Fuel } from 'lucide-react';
+import { Home, LogOut, Truck, Users, FolderOpen, Menu, X, ChevronLeft, ChevronRight, Fuel, Clock } from 'lucide-react';
 
 const Sidebar = ({ children }) => {
   const navigate = useNavigate();
@@ -35,6 +35,7 @@ const Sidebar = ({ children }) => {
   const menuItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/equipment', icon: Truck, label: 'Equipment' },
+    { path: '/work-logs', icon: Clock, label: 'Log Jam Kerja' },
     { path: '/fuel', icon: Fuel, label: 'Logistik BBM', isFuel: true },
     { path: '/employees', icon: Users, label: 'Employees' },
     { path: '/projects', icon: FolderOpen, label: 'Projects' },

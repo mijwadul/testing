@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Fuel } from 'lucide-react';
+import { Plus, Edit, Trash2, Fuel, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import AlertModal from '../components/AlertModal';
+import EquipmentDetailModal from '../components/EquipmentDetailModal';
 
 const EquipmentPage = () => {
   const navigate = useNavigate();
@@ -12,11 +13,18 @@ const EquipmentPage = () => {
   const [editingEquipment, setEditingEquipment] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteEquipmentId, setDeleteEquipmentId] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [userRole, setUserRole] = useState('user'); // Simulasi role user
   const [formData, setFormData] = useState({
     name: '',
     type: '',
     location: '',
-    status: 'active'
+    status: 'active',
+    ownership_status: 'internal',
+    rental_rate_per_hour: '',
+    deposit_amount: '',
+    vendor_id: ''
   });
 
   useEffect(() => {
@@ -79,9 +87,18 @@ const EquipmentPage = () => {
       name: item.name,
       type: item.type,
       location: item.location || '',
-      status: item.status
+      status: item.status,
+      ownership_status: item.ownership_status || 'internal',
+      rental_rate_per_hour: item.rental_rate_per_hour || '',
+      deposit_amount: item.deposit_amount || '',
+      vendor_id: item.vendor_id || ''
     });
     setShowForm(true);
+  };
+
+  const handleViewDetail = (item) => {
+    setSelectedEquipment(item);
+    setShowDetailModal(true);
   };
 
   const handleDelete = (id) => {
@@ -117,7 +134,11 @@ const EquipmentPage = () => {
       name: '',
       type: '',
       location: '',
-      status: 'active'
+      status: 'active',
+      ownership_status: 'internal',
+      rental_rate_per_hour: '',
+      deposit_amount: '',
+      vendor_id: ''
     });
   };
 
@@ -136,7 +157,23 @@ const EquipmentPage = () => {
   return (
     <div>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-3xl font-bold text-gray-800">Equipment Management</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">Equipment Management</h1>
+            <div className="mt-2 flex items-center space-x-2">
+              <span className="text-sm text-gray-600">Role saat ini:</span>
+              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                userRole === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+              }`}>
+                {userRole === 'admin' ? 'Admin' : 'Operator'}
+              </span>
+              <button
+                onClick={() => setUserRole(userRole === 'admin' ? 'user' : 'admin')}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Ganti Role
+              </button>
+            </div>
+          </div>
           <div className="flex space-x-3">
             <button
               onClick={() => navigate('/fuel')}
@@ -163,6 +200,7 @@ const EquipmentPage = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kepemilikan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -181,6 +219,14 @@ const EquipmentPage = () => {
                       {item.status}
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      (item.ownership_status || 'internal') === 'internal' ? 'bg-blue-100 text-blue-800' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                      {(item.ownership_status || 'internal') === 'internal' ? '[Milik]' : '[Rental]'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center space-x-2">
                       <button
@@ -189,6 +235,13 @@ const EquipmentPage = () => {
                         title="Isi BBM"
                       >
                         <Fuel size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleViewDetail(item)}
+                        className="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 p-1.5 rounded transition-colors"
+                        title="Lihat Detail"
+                      >
+                        <Eye size={16} />
                       </button>
                       <button
                         onClick={() => handleEdit(item)}
@@ -259,6 +312,54 @@ const EquipmentPage = () => {
                       <option value="inactive">Inactive</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Status Kepemilikan</label>
+                    <select
+                      value={formData.ownership_status}
+                      onChange={(e) => setFormData({...formData, ownership_status: e.target.value})}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    >
+                      <option value="internal">Milik Sendiri</option>
+                      <option value="rental">Sewa/Rental</option>
+                    </select>
+                  </div>
+                  
+                  {formData.ownership_status === 'rental' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Tarif Rental (Per Jam)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.rental_rate_per_hour}
+                          onChange={(e) => setFormData({...formData, rental_rate_per_hour: e.target.value})}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Nilai Deposit</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.deposit_amount}
+                          onChange={(e) => setFormData({...formData, deposit_amount: e.target.value})}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Vendor ID</label>
+                        <input
+                          type="number"
+                          value={formData.vendor_id}
+                          onChange={(e) => setFormData({...formData, vendor_id: e.target.value})}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                          placeholder="Opsional"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-end space-x-2 pt-4">
                     <button
                       type="button"
@@ -287,6 +388,16 @@ const EquipmentPage = () => {
         message="Apakah Anda yakin ingin menghapus equipment ini?"
         confirmText="Hapus"
         cancelText="Batal"
+      />
+      
+      <EquipmentDetailModal
+        equipment={selectedEquipment}
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedEquipment(null);
+        }}
+        userRole={userRole}
       />
     </div>
   );

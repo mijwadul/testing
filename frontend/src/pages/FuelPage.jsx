@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Fuel, Plus, Calendar, Truck, MapPin, Gauge, Droplets, Camera, X, Save, Edit, Trash2 } from 'lucide-react';
+import { Fuel, Plus, Calendar, Truck, MapPin, Droplets, X, Save, Edit, Trash2 } from 'lucide-react';
 import { API_URL } from '../api/auth';
 import { toast } from 'sonner';
 import AlertModal from '../components/AlertModal';
@@ -19,14 +19,11 @@ const FuelPage = () => {
   const [deleteLogId, setDeleteLogId] = useState(null);
   const [stats, setStats] = useState({
     total_fuel_consumed: 0,
-    total_hours_operated: 0,
-    avg_fuel_ratio: 0,
     equipment_count: 0
   });
 
   const [formData, setFormData] = useState({
     equipment_id: preselectedEquipmentId || '',
-    operating_hours: '',
     liters_filled: '',
     refuel_date: new Date().toISOString().slice(0, 16), // Format: YYYY-MM-DDTHH:mm
     location: '',
@@ -98,18 +95,26 @@ const FuelPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const parsedOperatingHours = Number.parseFloat(String(formData.operating_hours).replace(',', '.'));
+    const eqIdNum = Number.parseInt(String(formData.equipment_id), 10);
+    if (!formData.equipment_id || Number.isNaN(eqIdNum)) {
+      alert('Pilih unit alat terlebih dahulu');
+      return;
+    }
+
     const parsedLitersFilled = Number.parseFloat(String(formData.liters_filled).replace(',', '.'));
 
-    if (Number.isNaN(parsedOperatingHours) || Number.isNaN(parsedLitersFilled)) {
-      alert('Jam kerja dan jumlah liter harus berupa angka valid');
+    if (Number.isNaN(parsedLitersFilled)) {
+      alert('Jumlah liter harus berupa angka valid');
       return;
     }
 
     const payload = {
-      ...formData,
-      operating_hours: parsedOperatingHours,
-      liters_filled: parsedLitersFilled
+      equipment_id: eqIdNum,
+      liters_filled: parsedLitersFilled,
+      refuel_date: formData.refuel_date,
+      location: formData.location || undefined,
+      photo_url: formData.photo_url || undefined,
+      notes: formData.notes || undefined
     };
 
     try {
@@ -132,7 +137,6 @@ const FuelPage = () => {
         setEditingLog(null);
         setFormData({
           equipment_id: '',
-          operating_hours: '',
           liters_filled: '',
           refuel_date: new Date().toISOString().slice(0, 16),
           location: '',
@@ -176,7 +180,6 @@ const FuelPage = () => {
     setEditingLog(log);
     setFormData({
       equipment_id: log.equipment_id,
-      operating_hours: log.operating_hours,
       liters_filled: log.liters_filled,
       refuel_date: log.refuel_date ? new Date(log.refuel_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
       location: log.location || '',
@@ -225,7 +228,6 @@ const FuelPage = () => {
     setShowForm(false);
     setFormData({
       equipment_id: '',
-      operating_hours: '',
       liters_filled: '',
       refuel_date: new Date().toISOString().slice(0, 16),
       location: '',
@@ -253,7 +255,7 @@ const FuelPage = () => {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Logistik BBM</h1>
-            <p className="text-gray-600">Pencatatan pengisian solar dan analisis efisiensi</p>
+            <p className="text-gray-600">Pengisian solar dicatat di sini; jam kerja di menu Jam Kerja. Efisiensi dihitung otomatis dari keduanya.</p>
           </div>
         </div>
         <button
@@ -271,13 +273,9 @@ const FuelPage = () => {
           <p className="text-sm text-gray-600">Total BBM (30 hari)</p>
           <p className="text-2xl font-bold text-gray-800">{stats.total_fuel_consumed.toFixed(1)} L</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
-          <p className="text-sm text-gray-600">Total Jam Operasi</p>
-          <p className="text-2xl font-bold text-gray-800">{stats.total_hours_operated.toFixed(1)} H</p>
-        </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
-          <p className="text-sm text-gray-600">Efisiensi Rata-rata</p>
-          <p className="text-2xl font-bold text-gray-800">{stats.avg_fuel_ratio.toFixed(2)} L/H</p>
+          <p className="text-sm text-gray-600">Total BBM Terpakai</p>
+          <p className="text-2xl font-bold text-gray-800">{stats.total_fuel_consumed.toFixed(1)} L</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-purple-500">
           <p className="text-sm text-gray-600">Alat Terisi</p>
@@ -334,28 +332,6 @@ const FuelPage = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Klik untuk memilih tanggal dan waktu dari kalender
-                </p>
-              </div>
-
-              {/* Jam Kerja */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Gauge className="inline h-4 w-4 mr-1" />
-                  Jam Kerja (HM/Estimasi)
-                </label>
-                <input
-                  type="number"
-                  name="operating_hours"
-                  value={formData.operating_hours}
-                  onChange={handleInputChange}
-                  onWheel={preventWheelNumberChange}
-                  placeholder="Contoh: 1234.5"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  required
-                  step="any"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  HM dari mesin atau estimasi jam kerja jika HM rusak
                 </p>
               </div>
 
@@ -445,7 +421,6 @@ const FuelPage = () => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jam Kerja</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Liter</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lokasi</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catatan</th>
@@ -455,7 +430,7 @@ const FuelPage = () => {
             <tbody className="divide-y divide-gray-200">
               {fuelLogs.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
                     Belum ada data pengisian BBM
                   </td>
                 </tr>
@@ -475,7 +450,6 @@ const FuelPage = () => {
                       {log.equipment_name}
                       <span className="text-xs text-gray-500 block">{log.equipment_type}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm font-mono">{log.operating_hours}</td>
                     <td className="px-4 py-3 text-sm font-medium text-amber-600">{log.liters_filled} L</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{log.location || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">{log.notes || '-'}</td>

@@ -7,8 +7,6 @@ class FuelLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False)
-    # Keep API/model field name `operating_hours`, but map to legacy DB column `hour_meter`.
-    operating_hours = Column("hour_meter", Float, nullable=False)
     liters_filled = Column(Float, nullable=False)  # Jumlah liter diisi
     location = Column(String, nullable=True)  # Lokasi/proyek
     photo_url = Column(String, nullable=True)  # Foto nota (opsional)

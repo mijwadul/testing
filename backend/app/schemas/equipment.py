@@ -1,12 +1,17 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 
 class EquipmentBase(BaseModel):
     name: str
     type: str
     location: Optional[str] = None
     status: Optional[str] = "active"
+    ownership_status: Optional[str] = "internal"
+    rental_rate_per_hour: Optional[Decimal] = 0
+    deposit_amount: Optional[Decimal] = 0
+    vendor_id: Optional[int] = None
 
 class EquipmentCreate(EquipmentBase):
     pass
