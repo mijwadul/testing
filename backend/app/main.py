@@ -35,6 +35,7 @@ def bootstrap_database():
     _migrate_users_columns_if_needed()
     _migrate_fuel_logs_columns_if_needed()
     _migrate_employees_columns_if_needed()
+    _migrate_fuel_prices_columns_if_needed()
 
     default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "mijwadul@kusuma.com").strip().lower()
     default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "12345")
@@ -47,7 +48,7 @@ def bootstrap_database():
                 User(
                     email=default_admin_email,
                     password_hash=get_password_hash(default_admin_password),
-                    role="admin",
+                    role="gm",
                     is_admin=True,
                     is_superuser=True,
                     is_active=True,
@@ -56,9 +57,9 @@ def bootstrap_database():
         else:
             # Update password hash in case it's not properly hashed
             existing_admin.password_hash = get_password_hash(default_admin_password)
-            # Ensure role is set to admin
-            if existing_admin.role != "admin":
-                existing_admin.role = "admin"
+            # Ensure default admin user is set as GM superuser for development
+            if existing_admin.role != "gm":
+                existing_admin.role = "gm"
             if not existing_admin.is_admin:
                 existing_admin.is_admin = True
             if not existing_admin.is_superuser:
@@ -199,6 +200,22 @@ def _migrate_employees_columns_if_needed():
                 conn.execute(
                     text(f'ALTER TABLE employees ADD COLUMN "{column_name}" {column_type}')
                 )
+
+def _migrate_fuel_prices_columns_if_needed():
+    """Create fuel_prices table if it doesn't exist."""
+    inspector = inspect(engine)
+    if "fuel_prices" not in set(inspector.get_table_names()):
+        with engine.begin() as conn:
+            conn.execute(text('''
+                CREATE TABLE fuel_prices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    price_per_liter FLOAT NOT NULL,
+                    fuel_type VARCHAR NOT NULL,
+                    effective_date DATETIME NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_by INTEGER
+                )
+            '''))
 
 # Exception handler to see detailed errors
 @app.exception_handler(Exception)

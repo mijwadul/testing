@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from ...core.auth import get_current_user
 from ...core.database import get_db
-from ...models import FuelLog, Equipment, User, WorkLog
+from ...models import FuelLog, Equipment, User, WorkLog, FuelPrice
 from ...schemas import (
     FuelLogCreate,
     FuelLogUpdate,
@@ -13,6 +13,9 @@ from ...schemas import (
     FuelLogWithEquipment,
     FuelEfficiencyStats,
     FuelEquipmentReportItem,
+    FuelPriceCreate,
+    FuelPriceUpdate,
+    FuelPrice as FuelPriceSchema,
 )
 
 router = APIRouter()
@@ -326,3 +329,43 @@ def delete_fuel_log(
     db.delete(log)
     db.commit()
     return None
+
+
+@router.get("/price", response_model=List[FuelPriceSchema])
+def get_fuel_prices(
+    fuel_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Ambil daftar harga BBM"""
+    query = db.query(FuelPrice)
+    
+    if fuel_type:
+        query = query.filter(FuelPrice.fuel_type == fuel_type)
+    
+    prices = query.order_by(FuelPrice.effective_date.desc()).all()
+    return prices
+
+
+@router.post("/price", response_model=FuelPriceSchema)
+def create_fuel_price(
+    price_data: FuelPriceCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Tambah harga BBM baru"""
+    # Check if user is admin or has permission
+    if not current_user.is_admin and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized to create fuel prices")
+    
+    fuel_price = FuelPrice(
+        price_per_liter=price_data.price_per_liter,
+        fuel_type=price_data.fuel_type,
+        effective_date=price_data.effective_date,
+        created_by=current_user.id if current_user else None
+    )
+    
+    db.add(fuel_price)
+    db.commit()
+    db.refresh(fuel_price)
+    return fuel_price

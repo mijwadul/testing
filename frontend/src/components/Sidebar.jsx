@@ -275,10 +275,10 @@ const Sidebar = ({ children }) => {
 
   // Desktop Sidebar
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex h-screen overflow-hidden bg-gray-100">
       {/* Sidebar */}
       <div
-        className={`bg-green-800 text-white transition-all duration-300 ease-in-out flex flex-col ${
+        className={`h-screen bg-green-800 text-white transition-all duration-300 ease-in-out flex flex-col ${
           isOpen ? 'w-64' : 'w-20'
         }`}
       >
@@ -298,7 +298,7 @@ const Sidebar = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
           {mainMenuItems.map((item) => {
             // Skip items that shouldn't be shown
             if (item.show === false) return null;
@@ -409,7 +409,7 @@ const Sidebar = ({ children }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 h-screen overflow-y-auto p-6">
         {children}
       </div>
     </div>

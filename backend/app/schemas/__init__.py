@@ -16,4 +16,9 @@ from .fuel_log import (
     FuelEfficiencyStats,
     FuelEquipmentReportItem,
 )
+from .fuel_price import (
+    FuelPrice,
+    FuelPriceCreate,
+    FuelPriceUpdate,
+)
 from .work_log import WorkLog, WorkLogCreate, WorkLogUpdate, WorkLogWithEquipment, WorkLogWithProject, WorkLogStats, WorkEfficiencyStats

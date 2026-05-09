@@ -48,7 +48,8 @@ const FuelPricePage = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setCurrentPrice(data.price_per_liter?.toString() || '');
+        const latestPrice = Array.isArray(data) && data.length > 0 ? data[0] : data;
+        setCurrentPrice(latestPrice?.price_per_liter?.toString() || '');
       }
     } catch (error) {
       console.error('Error fetching fuel price:', error);
@@ -93,7 +94,11 @@ const FuelPricePage = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ price_per_liter: price })
+        body: JSON.stringify({
+          price_per_liter: price,
+          fuel_type: 'solar',
+          effective_date: new Date().toISOString()
+        })
       });
 
       if (response.ok) {

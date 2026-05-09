@@ -191,6 +191,11 @@ const EmployeesPage = () => {
   // Form handlers
   const handleEmployeeSubmit = async (e) => {
     e.preventDefault();
+
+    if (!employeeForm.name || !employeeForm.email) {
+      toast.error('Nama dan email harus diisi');
+      return;
+    }
     
     try {
       const token = localStorage.getItem('token');
@@ -200,8 +205,12 @@ const EmployeesPage = () => {
       
       const method = editingEmployee ? 'PUT' : 'POST';
       
-      // Send only non-financial data (Admin/HR form)
-      const formData = { ...employeeForm };
+      // Remove empty strings so optional fields don't trigger validation errors
+      const formData = Object.entries(employeeForm).reduce((acc, [key, value]) => {
+        if (value === '' || value === null || value === undefined) return acc;
+        acc[key] = value;
+        return acc;
+      }, {});
       
       const response = await fetch(url, {
         method,
@@ -219,7 +228,12 @@ const EmployeesPage = () => {
         fetchEmployees();
       } else {
         const error = await response.json();
-        toast.error(error.detail || 'Gagal menyimpan data karyawan');
+        const errorMessage = typeof error.detail === 'string'
+          ? error.detail
+          : Array.isArray(error.detail)
+            ? error.detail.map(err => err.msg || JSON.stringify(err)).join(', ')
+            : JSON.stringify(error.detail);
+        toast.error(errorMessage || 'Gagal menyimpan data karyawan');
       }
     } catch (error) {
       console.error('Error saving employee:', error);

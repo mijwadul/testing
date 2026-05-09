@@ -1,109 +1,420 @@
-import React from 'react';
-import { Calendar, Clock, UserCheck, Users, Filter, Download } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar, Clock, UserCheck, Users, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 
-/**
- * Attendance Page - Placeholder
- * 
- * Fitur yang akan diimplementasikan:
- * - Absensi karyawan dengan clock-in/clock-out
- * - Riwayat absensi per karyawan
- * - Laporan kehadiran (hadir, izin, sakit, alpha)
- * - Export data absensi
- * - Integrasi dengan sistem payroll
- */
+const toLocalDateInput = (value) => {
+  const date = value ? new Date(value) : new Date();
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 10);
+};
+
+const toLocalDateTimeInput = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+};
 
 const AttendancePage = () => {
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [attendance, setAttendance] = useState([]);
+  const [filters, setFilters] = useState({
+    employee_id: '',
+    start_date: toLocalDateInput(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+    end_date: toLocalDateInput(new Date())
+  });
+  const [formData, setFormData] = useState({
+    employee_id: '',
+    date: toLocalDateInput(new Date()),
+    status: 'present',
+    check_in: '',
+    check_out: '',
+    notes: ''
+  });
+
+  const token = localStorage.getItem('token');
+  const isGMOrSuperuser = currentUser?.is_superuser || currentUser?.role === 'gm';
+  const isHelper = currentUser?.role === 'helper' && !currentUser?.is_superuser;
+
+  const employeeMap = useMemo(() => {
+    const map = new Map();
+    employees.forEach((emp) => map.set(emp.id, emp));
+    return map;
+  }, [employees]);
+
+  const stats = useMemo(() => {
+    const today = toLocalDateInput(new Date());
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const hadirHariIni = attendance.filter(
+      (item) => item.date === today && ['present', 'late'].includes(item.status)
+    ).length;
+    const terlambat = attendance.filter((item) => item.status === 'late').length;
+    const izinSakitBulanIni = attendance.filter((item) => {
+      if (!item.date) return false;
+      const d = new Date(item.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && ['sick', 'leave'].includes(item.status);
+    }).length;
+
+    return {
+      hadirHariIni,
+      terlambat,
+      totalKaryawan: employees.length,
+      izinSakitBulanIni
+    };
+  }, [attendance, employees]);
+
+  const fetchCurrentUser = async () => {
+    const response = await fetch('/api/v1/auth/me', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Gagal memuat user');
+    const data = await response.json();
+    setCurrentUser(data);
+  };
+
+  const fetchEmployees = async () => {
+    const response = await fetch('/api/v1/employees/employees', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Gagal memuat karyawan');
+    const data = await response.json();
+    setEmployees(data);
+    if (!formData.employee_id && data.length > 0) {
+      setFormData((prev) => ({ ...prev, employee_id: String(data[0].id) }));
+    }
+  };
+
+  const fetchAttendance = async (activeFilters = filters) => {
+    const params = new URLSearchParams();
+    if (activeFilters.employee_id) params.append('employee_id', activeFilters.employee_id);
+    if (activeFilters.start_date) params.append('start_date', activeFilters.start_date);
+    if (activeFilters.end_date) params.append('end_date', activeFilters.end_date);
+
+    const queryString = params.toString();
+    const response = await fetch(`/api/v1/employees/attendance${queryString ? `?${queryString}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Gagal memuat data absensi');
+    const data = await response.json();
+    setAttendance(data);
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await fetchCurrentUser();
+        await fetchEmployees();
+        await fetchAttendance();
+      } catch (error) {
+        console.error(error);
+        toast.error(error.message || 'Gagal memuat halaman absensi');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (isHelper) {
+      setFormData((prev) => ({ ...prev, date: toLocalDateInput(new Date()) }));
+    }
+  }, [isHelper]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.employee_id) {
+      toast.error('Pilih karyawan terlebih dahulu');
+      return;
+    }
+
+    setSubmitting(true);
+    const payload = {
+      employee_id: Number(formData.employee_id),
+      date: isHelper ? toLocalDateInput(new Date()) : formData.date,
+      status: formData.status,
+      check_in: formData.check_in ? new Date(formData.check_in).toISOString() : null,
+      check_out: formData.check_out ? new Date(formData.check_out).toISOString() : null,
+      notes: formData.notes || null
+    };
+
+    try {
+      const response = await fetch('/api/v1/employees/attendance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Gagal menyimpan absensi');
+      }
+
+      toast.success('Absensi berhasil disimpan');
+      setFormData((prev) => ({
+        ...prev,
+        status: 'present',
+        check_in: '',
+        check_out: '',
+        notes: '',
+        date: isHelper ? toLocalDateInput(new Date()) : prev.date
+      }));
+      await fetchAttendance();
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || 'Terjadi kesalahan saat menyimpan absensi');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleApplyFilter = async () => {
+    try {
+      setLoading(true);
+      await fetchAttendance(filters);
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || 'Gagal memfilter data absensi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Memuat data absensi...</p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Absensi Karyawan</h1>
-        <p className="text-gray-600 mt-1">Manajemen kehadiran dan absensi karyawan</p>
+        <p className="text-gray-600 mt-1">Pencatatan dan pemantauan kehadiran karyawan</p>
       </div>
 
-      {/* Placeholder Features */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <UserCheck className="h-6 w-6 text-blue-600" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <UserCheck className="h-5 w-5 text-blue-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">-</span>
+            <span className="text-2xl font-bold text-gray-900">{stats.hadirHariIni}</span>
           </div>
           <p className="text-sm text-gray-600">Hadir Hari Ini</p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-yellow-100 rounded-lg">
-              <Clock className="h-6 w-6 text-yellow-600" />
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <Clock className="h-5 w-5 text-yellow-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">-</span>
+            <span className="text-2xl font-bold text-gray-900">{stats.terlambat}</span>
           </div>
-          <p className="text-sm text-gray-600">Terlambat</p>
+          <p className="text-sm text-gray-600">Status Terlambat</p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-100 rounded-lg">
-              <Users className="h-6 w-6 text-green-600" />
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Users className="h-5 w-5 text-green-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">-</span>
+            <span className="text-2xl font-bold text-gray-900">{stats.totalKaryawan}</span>
           </div>
           <p className="text-sm text-gray-600">Total Karyawan</p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-purple-600" />
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Calendar className="h-5 w-5 text-purple-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">-</span>
+            <span className="text-2xl font-bold text-gray-900">{stats.izinSakitBulanIni}</span>
           </div>
           <p className="text-sm text-gray-600">Izin/Sakit Bulan Ini</p>
         </div>
       </div>
 
-      {/* Coming Soon Notice */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-8 text-center">
-        <div className="flex justify-center mb-4">
-          <div className="p-4 bg-amber-100 rounded-full">
-            <Clock className="h-12 w-12 text-amber-600" />
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+          <Plus className="w-5 h-5 mr-2 text-blue-600" />
+          Input Absensi
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Karyawan</label>
+              <select
+                value={formData.employee_id}
+                onChange={(e) => setFormData((prev) => ({ ...prev, employee_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                required
+              >
+                <option value="">-- Pilih Karyawan --</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.employee_code || '-'})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+              <input
+                type="date"
+                value={isHelper ? toLocalDateInput(new Date()) : formData.date}
+                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                disabled={isHelper}
+                readOnly={isHelper}
+                required
+              />
+              {isGMOrSuperuser && (
+                <p className="text-xs text-gray-500 mt-1">Role Anda dapat memilih tanggal absensi.</p>
+              )}
+              {isHelper && (
+                <p className="text-xs text-amber-600 mt-1">Tanggal helper otomatis mengikuti tanggal akses aplikasi.</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              >
+                <option value="present">Hadir</option>
+                <option value="late">Terlambat</option>
+                <option value="sick">Sakit</option>
+                <option value="leave">Izin/Cuti</option>
+                <option value="absent">Alpha</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Jam Check-in</label>
+              <input
+                type="datetime-local"
+                value={formData.check_in}
+                onChange={(e) => setFormData((prev) => ({ ...prev, check_in: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Jam Check-out</label>
+              <input
+                type="datetime-local"
+                value={formData.check_out}
+                onChange={(e) => setFormData((prev) => ({ ...prev, check_out: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div className="md:col-span-2 lg:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+              <input
+                type="text"
+                value={formData.notes}
+                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                placeholder="Opsional"
+              />
+            </div>
           </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg"
+          >
+            {submitting ? 'Menyimpan...' : 'Simpan Absensi'}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Filter & Riwayat Absensi</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+          <select
+            value={filters.employee_id}
+            onChange={(e) => setFilters((prev) => ({ ...prev, employee_id: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-3 py-2"
+          >
+            <option value="">Semua karyawan</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={filters.start_date}
+            onChange={(e) => setFilters((prev) => ({ ...prev, start_date: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-3 py-2"
+          />
+          <input
+            type="date"
+            value={filters.end_date}
+            onChange={(e) => setFilters((prev) => ({ ...prev, end_date: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-3 py-2"
+          />
+          <button
+            type="button"
+            onClick={handleApplyFilter}
+            className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg"
+          >
+            Terapkan Filter
+          </button>
         </div>
-        <h2 className="text-xl font-semibold text-amber-800 mb-2">Fitur Dalam Pengembangan</h2>
-        <p className="text-amber-700 mb-4 max-w-2xl mx-auto">
-          Modul absensi karyawan sedang dalam tahap pengembangan. 
-          Fitur ini akan mencakup:
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto text-left">
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <h3 className="font-medium text-gray-800 mb-2 flex items-center">
-              <UserCheck size={16} className="mr-2 text-blue-500" />
-              Clock In/Out
-            </h3>
-              <p className="text-sm text-gray-600">Sistem absensi masuk dan keluar dengan timestamp otomatis</p>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <h3 className="font-medium text-gray-800 mb-2 flex items-center">
-              <Calendar size={16} className="mr-2 text-green-500" />
-              Riwayat Kehadiran
-            </h3>
-            <p className="text-sm text-gray-600">Lihat riwayat absensi per karyawan dengan filter tanggal</p>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <h3 className="font-medium text-gray-800 mb-2 flex items-center">
-              <Filter size={16} className="mr-2 text-purple-500" />
-              Kategori Absensi
-            </h3>
-            <p className="text-sm text-gray-600">Kategori hadir, izin, sakit, cuti, dan alpha</p>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <h3 className="font-medium text-gray-800 mb-2 flex items-center">
-              <Download size={16} className="mr-2 text-amber-500" />
-              Export Laporan
-            </h3>
-            <p className="text-sm text-gray-600">Export data absensi ke Excel/PDF untuk payroll</p>
-          </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Karyawan</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check-in</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check-out</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jam Kerja</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catatan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {attendance.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                    Belum ada data absensi
+                  </td>
+                </tr>
+              ) : (
+                attendance.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm">{row.date || '-'}</td>
+                    <td className="px-4 py-3 text-sm font-medium">
+                      {employeeMap.get(row.employee_id)?.name || `ID ${row.employee_id}`}
+                    </td>
+                    <td className="px-4 py-3 text-sm">{row.status || '-'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {row.check_in ? new Date(row.check_in).toLocaleString('id-ID') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {row.check_out ? new Date(row.check_out).toLocaleString('id-ID') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm">{row.work_hours != null ? Number(row.work_hours).toFixed(2) : '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{row.notes || '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

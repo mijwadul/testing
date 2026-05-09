@@ -288,7 +288,7 @@ def delete_employee(
     Delete employee (soft delete by setting inactive).
     - Only GM can delete employees
     """
-    if current_user.role not in ["gm", "admin"] and not current_user.is_admin:
+    if current_user.role not in ["gm", "admin"] and not current_user.is_admin and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only GM can delete employees"
@@ -393,13 +393,13 @@ def create_payroll(
         other_deduction=payroll.other_deduction or 0,
         total_deduction=calc_result.total_deduction,
         net_salary=calc_result.net_salary,
-        payment_status="approved" if current_user.role == "gm" or current_user.is_admin else "pending",
+        payment_status="approved" if current_user.role == "gm" or current_user.is_admin or current_user.is_superuser else "pending",
         notes=payroll.notes,
         created_by=current_user.id
     )
     
     # If GM creates, auto-approve
-    if current_user.role == "gm" or current_user.is_admin:
+    if current_user.role == "gm" or current_user.is_admin or current_user.is_superuser:
         db_payroll.approved_by = current_user.id
         db_payroll.approved_at = datetime.now()
         
@@ -502,8 +502,10 @@ def create_attendance(
 ):
     """
     Create attendance record.
-    - Field Staff: Can create own attendance (with geotagging)
-    - Admin/HR: Can create for any employee
+    - Superuser/GM: Can create for any employee with selectable date
+    - Helper (legacy): Can create for any employee, date is forced to today
+    - Field Staff: Can create own attendance only
+    - Admin/HR/Finance: Can create for any employee
     """
     # Check if employee exists
     employee = db.query(Employee).filter(Employee.id == attendance.employee_id).first()
@@ -511,21 +513,25 @@ def create_attendance(
         raise HTTPException(status_code=404, detail="Employee not found")
     
     # Field staff can only create for themselves
-    if current_user.role == "field" and employee.user_id != current_user.id:
+    if current_user.role == "field" and not current_user.is_superuser and employee.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Can only create attendance for yourself"
         )
+
+    attendance_data = attendance.dict(exclude_unset=True)
+
+    # Legacy helper can create attendance for any employee,
+    # but date must always be the current access date.
+    if current_user.role == "helper" and not current_user.is_superuser:
+        attendance_data["date"] = date.today()
     
     # Calculate work hours if check_out provided
     work_hours = 0
     if attendance.check_in and attendance.check_out:
         work_hours = (attendance.check_out - attendance.check_in).total_seconds() / 3600
     
-    db_attendance = Attendance(
-        **attendance.dict(exclude_unset=True),
-        work_hours=work_hours
-    )
+    db_attendance = Attendance(**attendance_data, work_hours=work_hours)
     
     db.add(db_attendance)
     db.commit()
@@ -549,7 +555,7 @@ def get_attendance(
     query = db.query(Attendance)
     
     # Field staff can only see own attendance
-    if current_user.role == "field":
+    if current_user.role == "field" and not current_user.is_superuser:
         # Find employee linked to user
         employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
         if employee:
