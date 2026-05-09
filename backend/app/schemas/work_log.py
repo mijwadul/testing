@@ -9,6 +9,7 @@ class WorkLogBase(BaseModel):
     hm_start: Optional[Decimal] = None
     hm_end: Optional[Decimal] = None
     total_hours: Decimal
+    rental_discount_hours: Optional[Decimal] = 0
     project_id: Optional[int] = None
     operator_name: Optional[str] = None
     work_description: Optional[str] = None
@@ -22,6 +23,7 @@ class WorkLogUpdate(BaseModel):
     hm_start: Optional[Decimal] = None
     hm_end: Optional[Decimal] = None
     total_hours: Optional[Decimal] = None
+    rental_discount_hours: Optional[Decimal] = None
     project_id: Optional[int] = None
     operator_name: Optional[str] = None
     work_description: Optional[str] = None
@@ -40,6 +42,11 @@ class WorkLogWithEquipment(WorkLog):
     equipment_name: str
     equipment_type: str
     equipment_location: Optional[str] = None
+    rental_rate_per_hour: Optional[Decimal] = 0
+    rental_billable_hours: Optional[Decimal] = 0
+    rental_cost_before_discount: Optional[Decimal] = 0
+    rental_discount_amount: Optional[Decimal] = 0
+    rental_cost_total: Optional[Decimal] = 0
 
 class WorkLogWithProject(WorkLogWithEquipment):
     project_name: Optional[str] = None

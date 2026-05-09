@@ -36,6 +36,7 @@ def bootstrap_database():
     _migrate_fuel_logs_columns_if_needed()
     _migrate_employees_columns_if_needed()
     _migrate_fuel_prices_columns_if_needed()
+    _migrate_work_logs_columns_if_needed()
 
     default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "mijwadul@kusuma.com").strip().lower()
     default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "12345")
@@ -216,6 +217,25 @@ def _migrate_fuel_prices_columns_if_needed():
                     created_by INTEGER
                 )
             '''))
+
+
+def _migrate_work_logs_columns_if_needed():
+    """Add missing columns to work_logs table for rental financing."""
+    inspector = inspect(engine)
+    if "work_logs" not in set(inspector.get_table_names()):
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("work_logs")}
+    required_columns = {
+        "rental_discount_hours": "DECIMAL(10,2) DEFAULT 0",
+    }
+
+    with engine.begin() as conn:
+        for column_name, column_type in required_columns.items():
+            if column_name not in existing_columns:
+                conn.execute(
+                    text(f'ALTER TABLE work_logs ADD COLUMN "{column_name}" {column_type}')
+                )
 
 # Exception handler to see detailed errors
 @app.exception_handler(Exception)

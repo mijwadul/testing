@@ -18,6 +18,9 @@ class WorkLog(Base):
     
     # Total hours (hasil hitungan otomatis atau input manual)
     total_hours = Column(DECIMAL(10, 2), nullable=False)
+
+    # Rental cost discount as deducted hours for financing calculation
+    rental_discount_hours = Column(DECIMAL(10, 2), nullable=False, default=0)
     
     # Operator info
     operator_name = Column(String(100), nullable=True)

@@ -32,10 +32,11 @@ const WorkLogsPage = () => {
     hm_start: '',
     hm_end: '',
     total_hours: '',
+    rental_discount_hours: '0',
     project_id: '',
     operator_name: '',
     work_description: '',
-    work_date: new Date().toISOString().slice(0, 16) // Format: YYYY-MM-DDTHH:mm
+    work_date: new Date().toISOString().slice(0, 10) // Format: YYYY-MM-DD
   });
 
   useEffect(() => {
@@ -167,9 +168,22 @@ const WorkLogsPage = () => {
       }
     }
 
+    const discountHours = parseFloat(formData.rental_discount_hours || 0);
+    if (discountHours < 0) {
+      toast.error('Potongan jam tidak boleh negatif');
+      return;
+    }
+
+    if (discountHours > parseFloat(formData.total_hours || 0)) {
+      toast.error('Potongan jam tidak boleh melebihi total jam kerja');
+      return;
+    }
+
     const payload = {
       ...formData,
+      work_date: `${formData.work_date}T00:00:00`,
       total_hours: parseFloat(formData.total_hours),
+      rental_discount_hours: parseFloat(formData.rental_discount_hours || 0),
       hm_start: formData.input_method === 'HM' ? parseFloat(formData.hm_start) : null,
       hm_end: formData.input_method === 'HM' ? parseFloat(formData.hm_end) : null,
       project_id: formData.project_id ? parseInt(formData.project_id) : null
@@ -215,10 +229,11 @@ const WorkLogsPage = () => {
       hm_start: log.hm_start || '',
       hm_end: log.hm_end || '',
       total_hours: log.total_hours,
+      rental_discount_hours: log.rental_discount_hours || '0',
       project_id: log.project_id || '',
       operator_name: log.operator_name || '',
       work_description: log.work_description || '',
-      work_date: log.work_date ? new Date(log.work_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)
+      work_date: log.work_date ? new Date(log.work_date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -264,10 +279,11 @@ const WorkLogsPage = () => {
       hm_start: '',
       hm_end: '',
       total_hours: '',
+      rental_discount_hours: '0',
       project_id: '',
       operator_name: '',
       work_description: '',
-      work_date: new Date().toISOString().slice(0, 16)
+      work_date: new Date().toISOString().slice(0, 10)
     });
   };
 
@@ -285,6 +301,17 @@ const WorkLogsPage = () => {
       </div>
     );
   }
+
+  const selectedEquipment = equipment.find(eq => String(eq.id) === String(formData.equipment_id));
+  const selectedRentalRate = parseFloat(selectedEquipment?.rental_rate_per_hour || 0);
+  const isRentalEquipment = (selectedEquipment?.ownership_status || 'internal') === 'rental';
+  const formHours = parseFloat(formData.total_hours || 0);
+  const formDiscountHours = Math.max(0, parseFloat(formData.rental_discount_hours || 0));
+  const effectiveDiscountHours = Math.min(formHours, formDiscountHours);
+  const estimatedBillableHours = Math.max(0, formHours - effectiveDiscountHours);
+  const estimatedRentalGross = isRentalEquipment ? formHours * selectedRentalRate : 0;
+  const estimatedRentalDiscount = isRentalEquipment ? effectiveDiscountHours * selectedRentalRate : 0;
+  const estimatedRentalTotal = estimatedRentalGross - estimatedRentalDiscount;
 
   return (
     <div>
@@ -383,14 +410,14 @@ const WorkLogsPage = () => {
                 </select>
               </div>
 
-              {/* Tanggal & Waktu */}
+              {/* Tanggal Kerja */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   <Calendar className="inline h-4 w-4 mr-1" />
-                  Tanggal & Waktu Kerja
+                  Tanggal Kerja
                 </label>
                 <input
-                  type="datetime-local"
+                  type="date"
                   name="work_date"
                   value={formData.work_date}
                   onChange={handleInputChange}
@@ -480,6 +507,27 @@ const WorkLogsPage = () => {
                 </div>
               )}
 
+              {/* Rental Discount */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <AlertTriangle className="inline h-4 w-4 mr-1 text-amber-500" />
+                  Potongan Jam Sewa (Jam)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  name="rental_discount_hours"
+                  value={formData.rental_discount_hours}
+                  onChange={handleInputChange}
+                  placeholder="Contoh: 1.5"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Jam potongan untuk perhitungan biaya sewa pada log ini
+                </p>
+              </div>
+
               {/* Project */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -517,6 +565,24 @@ const WorkLogsPage = () => {
                 />
               </div>
             </div>
+
+            {/* Rental Cost Preview */}
+            {isRentalEquipment && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm font-semibold text-amber-800 mb-2">Estimasi Biaya Sewa</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <p className="text-gray-700">
+                    Tarif/Jam: <span className="font-semibold">Rp {selectedRentalRate.toLocaleString('id-ID')}</span>
+                  </p>
+                  <p className="text-gray-700">
+                    Jam Ditagih: <span className="font-semibold">{estimatedBillableHours.toLocaleString('id-ID')} Jam</span>
+                  </p>
+                  <p className="text-gray-700">
+                    Total Setelah Diskon: <span className="font-semibold text-amber-700">Rp {estimatedRentalTotal.toLocaleString('id-ID')}</span>
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Work Description */}
             <div>
@@ -572,6 +638,8 @@ const WorkLogsPage = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metode</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">HM</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Jam</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Diskon</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Biaya Sewa</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operator</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proyek</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
@@ -580,7 +648,7 @@ const WorkLogsPage = () => {
             <tbody className="divide-y divide-gray-200">
               {workLogs.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="10" className="px-4 py-8 text-center text-gray-500">
                     Belum ada data jam kerja
                   </td>
                 </tr>
@@ -588,12 +656,10 @@ const WorkLogsPage = () => {
                 workLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">
-                      {log.work_date ? new Date(log.work_date).toLocaleString('id-ID', {
+                      {log.work_date ? new Date(log.work_date).toLocaleDateString('id-ID', {
                         day: '2-digit',
                         month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
+                        year: 'numeric'
                       }) : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium">
@@ -614,6 +680,12 @@ const WorkLogsPage = () => {
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold text-blue-600">
                       {log.total_hours} H
+                    </td>
+                    <td className="px-4 py-3 text-sm text-amber-700 font-medium">
+                      {Number(log.rental_discount_hours || 0).toLocaleString('id-ID')} Jam
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-amber-700">
+                      Rp {Number(log.rental_cost_total || 0).toLocaleString('id-ID')}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{log.operator_name || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{log.project_name || '-'}</td>

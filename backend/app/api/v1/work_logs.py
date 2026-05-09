@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
+from decimal import Decimal
 from datetime import datetime, date, timedelta
 
 from ...core.database import get_db
@@ -17,6 +18,33 @@ from ...schemas.work_log import (
 )
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
+
+
+def _calculate_rental_costs(work_log: WorkLog, equipment: Equipment) -> dict:
+    rate = Decimal(str(equipment.rental_rate_per_hour or 0))
+    hours = Decimal(str(work_log.total_hours or 0))
+    discount_hours = Decimal(str(work_log.rental_discount_hours or 0))
+
+    if discount_hours < 0:
+        discount_hours = Decimal("0")
+    if discount_hours > hours:
+        discount_hours = hours
+
+    if (equipment.ownership_status or "internal") != "rental":
+        rate = Decimal("0")
+
+    gross_cost = hours * rate
+    billable_hours = hours - discount_hours
+    discount_amount = discount_hours * rate
+    total_cost = gross_cost - discount_amount
+
+    return {
+        "rental_rate_per_hour": rate,
+        "rental_billable_hours": billable_hours,
+        "rental_cost_before_discount": gross_cost,
+        "rental_discount_amount": discount_amount,
+        "rental_cost_total": total_cost,
+    }
 
 @router.get("", response_model=List[WorkLogWithEquipment])
 def get_work_logs(
@@ -55,7 +83,8 @@ def get_work_logs(
             **work_log.__dict__,
             'equipment_name': equipment.name,
             'equipment_type': equipment.type,
-            'equipment_location': equipment.location
+            'equipment_location': equipment.location,
+            **_calculate_rental_costs(work_log, equipment),
         }
         result.append(WorkLogWithEquipment(**work_dict))
     
@@ -74,7 +103,8 @@ def get_work_log(work_log_id: int, db: Session = Depends(get_db)):
         **work_log_data.__dict__,
         'equipment_name': equipment.name,
         'equipment_type': equipment.type,
-        'equipment_location': equipment.location
+        'equipment_location': equipment.location,
+        **_calculate_rental_costs(work_log_data, equipment),
     }
     
     return WorkLogWithEquipment(**work_dict)
@@ -93,6 +123,12 @@ def create_work_log(work_log: WorkLogCreate, db: Session = Depends(get_db)):
     if work_log.input_method == "HM" and work_log.hm_start and work_log.hm_end:
         total_hours = float(work_log.hm_end - work_log.hm_start)
     
+    discount_hours = Decimal(str(work_log.rental_discount_hours or 0))
+    if discount_hours < 0:
+        discount_hours = Decimal("0")
+    if discount_hours > Decimal(str(total_hours or 0)):
+        discount_hours = Decimal(str(total_hours or 0))
+
     # Create work log
     db_work_log = WorkLog(
         equipment_id=work_log.equipment_id,
@@ -100,6 +136,7 @@ def create_work_log(work_log: WorkLogCreate, db: Session = Depends(get_db)):
         hm_start=work_log.hm_start,
         hm_end=work_log.hm_end,
         total_hours=total_hours,
+        rental_discount_hours=discount_hours,
         project_id=work_log.project_id,
         operator_name=work_log.operator_name,
         work_description=work_log.work_description,
@@ -130,6 +167,15 @@ def update_work_log(
     # Auto-calculate total_hours if HM method
     if work_log_update.input_method == "HM" and work_log_update.hm_start and work_log_update.hm_end:
         update_data['total_hours'] = float(work_log_update.hm_end - work_log_update.hm_start)
+
+    if "rental_discount_hours" in update_data and update_data["rental_discount_hours"] is not None:
+        discount_hours = Decimal(str(update_data["rental_discount_hours"]))
+        if discount_hours < 0:
+            discount_hours = Decimal("0")
+        hours_for_cap = Decimal(str(update_data.get("total_hours", work_log.total_hours) or 0))
+        if discount_hours > hours_for_cap:
+            discount_hours = hours_for_cap
+        update_data["rental_discount_hours"] = discount_hours
     
     for key, value in update_data.items():
         setattr(work_log, key, value)
