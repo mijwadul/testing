@@ -259,7 +259,38 @@ def get_fuel_equipment_report(
         equip = equip_by_id.get(eq_id)
         liters = sums["total_liters"]
         hours = sums["total_work_hours"]
-        lph = (liters / hours) if hours > 0 else None
+
+        # Prefer calculation based on HM delta jika tersedia; fallback ke rata-rata total liters / total work hours.
+        lph = None
+        hour_meter_rows = db.query(FuelLog.hour_meter).filter(
+            FuelLog.equipment_id == eq_id,
+            FuelLog.refuel_date >= since,
+            FuelLog.hour_meter != None
+        ).order_by(FuelLog.refuel_date.desc(), FuelLog.id.desc()).limit(2).all()
+
+        hour_meters = [float(row[0]) for row in hour_meter_rows if row[0] is not None]
+        if len(hour_meters) >= 2:
+            delta_hm = hour_meters[0] - hour_meters[1]
+            if delta_hm > 0:
+                lph = liters / delta_hm
+
+        if lph is None and hours > 0:
+            lph = liters / hours
+
+        lph = round(lph, 2) if lph is not None else None
+
+        status_anomali = False
+        pesan_alert = ""
+        if lph is not None:
+            if lph > 35:
+                status_anomali = True
+                pesan_alert = "Konsumsi BBM boros (>35 liter/jam). Periksa penggunaan atau kondisi mesin."
+            elif lph < 5:
+                status_anomali = True
+                pesan_alert = "Konsumsi BBM tidak wajar (<5 liter/jam). Periksa input HM/jam kerja."
+        else:
+            pesan_alert = "Data tidak cukup untuk menghitung Liter/Jam."
+
         items.append(
             FuelEquipmentReportItem(
                 equipment_id=eq_id,
@@ -267,6 +298,10 @@ def get_fuel_equipment_report(
                 equipment_type=equip.type if equip else "?",
                 location=equip.location if equip else None,
                 total_liters=round(liters, 2),
+                total_work_hours=round(hours, 2),
+                liter_per_hour=lph,
+                status_anomali=status_anomali,
+                pesan_alert=pesan_alert,
                 refuel_count=sums["refuel_count"],
             )
         )

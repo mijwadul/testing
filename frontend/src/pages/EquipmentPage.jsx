@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Fuel, Eye } from 'lucide-react';
+import { Plus, Edit, Trash2, Fuel, Eye, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import AlertModal from '../components/AlertModal';
 import EquipmentDetailModal from '../components/EquipmentDetailModal';
@@ -15,6 +15,7 @@ const EquipmentPage = () => {
   const [deleteEquipmentId, setDeleteEquipmentId] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [fuelReport, setFuelReport] = useState([]);
   const [userRole, setUserRole] = useState('user'); // Simulasi role user
   const [formData, setFormData] = useState({
     name: '',
@@ -29,7 +30,25 @@ const EquipmentPage = () => {
 
   useEffect(() => {
     fetchEquipment();
+    fetchFuelReport();
   }, []);
+
+  const fetchFuelReport = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/v1/fuel/equipment-report', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFuelReport(data);
+      }
+    } catch (error) {
+      console.error('Error fetching fuel report:', error);
+    }
+  };
 
   const fetchEquipment = async () => {
     try {
@@ -214,16 +233,31 @@ const EquipmentPage = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kepemilikan</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Liter/Jam</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BBM Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {equipment.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.type}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.location}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+              {equipment.map((item) => {
+                const report = fuelReport.find((row) => row.equipment_id === item.id) || {};
+                const lph = report.liter_per_hour;
+                const isAnomaly = report.status_anomali;
+                const hasLph = typeof lph === 'number';
+                const progressValue = hasLph ? Math.min((lph / 35) * 100, 100) : 0;
+                const statusLabel = isAnomaly ? 'Anomali' : hasLph ? 'Normal' : 'Perlu Data';
+                const badgeClasses = isAnomaly
+                  ? 'bg-red-100 text-red-800'
+                  : hasLph
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-yellow-100 text-yellow-800';
+
+                return (
+                  <tr key={item.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.type}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.location}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       item.status === 'active' ? 'bg-green-100 text-green-800' :
                       item.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
@@ -238,6 +272,25 @@ const EquipmentPage = () => {
                       'bg-amber-100 text-amber-800'
                     }`}>
                       {(item.ownership_status || 'internal') === 'internal' ? '[Milik]' : '[Rental]'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>{hasLph ? lph.toFixed(2) : '-'}</span>
+                      {isAnomaly && (
+                        <AlertTriangle size={16} className="text-red-600" title={report.pesan_alert || 'Konsumsi tidak wajar'} />
+                      )}
+                    </div>
+                    <div className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${isAnomaly ? 'bg-red-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${progressValue}%` }}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClasses}`}>
+                      {statusLabel}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -271,7 +324,8 @@ const EquipmentPage = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
           </table>
         </div>
