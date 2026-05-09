@@ -7,6 +7,13 @@ import EmployeesPage from './pages/EmployeesPage';
 import ProjectsPage from './pages/ProjectsPage';
 import FuelPage from './pages/FuelPage';
 import WorkLogsPage from './pages/WorkLogsPage';
+import UsersPage from './pages/UsersPage';
+import AttendancePage from './pages/AttendancePage';
+import MaterialSalesPage from './pages/MaterialSalesPage';
+import IncomePage from './pages/IncomePage';
+import FinancePage from './pages/FinancePage';
+import FuelPricePage from './pages/FuelPricePage';
+import RentalRatesPage from './pages/RentalRatesPage';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -32,6 +39,13 @@ function App() {
           <Route path="/work-logs" element={<WorkLogsPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/attendance" element={<AttendancePage />} />
+          <Route path="/material-sales" element={<MaterialSalesPage />} />
+          <Route path="/income" element={<IncomePage />} />
+          <Route path="/finance" element={<FinancePage />} />
+          <Route path="/finance/fuel-price" element={<FuelPricePage />} />
+          <Route path="/finance/rental-rates" element={<RentalRatesPage />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>

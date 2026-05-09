@@ -16,8 +16,15 @@ class EquipmentBase(BaseModel):
 class EquipmentCreate(EquipmentBase):
     pass
 
-class EquipmentUpdate(EquipmentBase):
-    pass
+class EquipmentUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    location: Optional[str] = None
+    status: Optional[str] = None
+    ownership_status: Optional[str] = None
+    rental_rate_per_hour: Optional[Decimal] = None
+    deposit_amount: Optional[Decimal] = None
+    vendor_id: Optional[int] = None
 
 class Equipment(EquipmentBase):
     id: int

@@ -16,12 +16,23 @@ export const login = async (email, password) => {
   if (response.data.access_token) {
     localStorage.setItem('token', response.data.access_token);
   }
+  
+  // Store user data including role
+  if (response.data.user) {
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+  }
 
   return response.data;
 };
 
+export const getUser = () => {
+  const userStr = localStorage.getItem('user');
+  return userStr ? JSON.parse(userStr) : null;
+};
+
 export const logout = () => {
   localStorage.removeItem('token');
+  localStorage.removeItem('user');
 };
 
 export const getToken = () => {

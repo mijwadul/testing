@@ -35,11 +35,13 @@ def create_fuel_log(
 
     fuel_log = FuelLog(
         equipment_id=fuel_data.equipment_id,
+        hour_meter=fuel_data.hour_meter,
         liters_filled=fuel_data.liters_filled,
         refuel_date=fuel_data.refuel_date,
         location=fuel_data.location or equipment.location,
         photo_url=fuel_data.photo_url,
         notes=fuel_data.notes,
+        operating_hours=fuel_data.operating_hours,
         recorded_by=current_user.id if current_user else None
     )
 
@@ -135,7 +137,7 @@ def update_fuel_log(
     if not fuel_log:
         raise HTTPException(status_code=404, detail="Fuel log not found")
 
-    if not current_user.is_admin and fuel_log.recorded_by != current_user.id:
+    if not current_user.is_admin and not current_user.is_superuser and fuel_log.recorded_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to update this log")
 
     update_data = fuel_data.model_dump(exclude_unset=True)
@@ -318,7 +320,7 @@ def delete_fuel_log(
     if not log:
         raise HTTPException(status_code=404, detail="Fuel log not found")
 
-    if not current_user.is_admin and log.recorded_by != current_user.id:
+    if not current_user.is_admin and not current_user.is_superuser and log.recorded_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this log")
 
     db.delete(log)

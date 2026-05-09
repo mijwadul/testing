@@ -8,7 +8,14 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    is_admin = Column(Boolean, default=False)
+    # Role: gm (General Manager), finance (Finance Staff), admin (Admin/HR), field (Field Staff)
+    role = Column(String, default="field")  # gm, finance, admin, field
+    is_admin = Column(Boolean, default=False)  # GM level
+    is_superuser = Column(Boolean, default=False)  # Backward compatibility
     is_active = Column(Boolean, default=True)
+    full_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    employee_id = Column(String, nullable=True)  # Link to employee record
+    last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

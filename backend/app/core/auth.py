@@ -40,6 +40,20 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def require_role(allowed_roles: list):
+    """Dependency to check if user has required role"""
+    def role_checker(user: User = Depends(get_current_user)):
+        # GM and superuser always have access
+        if user.role == "gm" or user.is_admin or user.is_superuser:
+            return user
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
+        return user
+    return role_checker
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,4 +71,18 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
     if user is None:
         raise credentials_exception
+    return user
+
+def require_admin(user: User = Depends(get_current_user)):
+    """Dependency to check if user is admin/gm or superuser"""
+    # Bina-ERP roles: gm (General Manager), finance, admin, field
+    # Also support legacy 'admin' role for backward compatibility
+    allowed_roles = ["gm", "admin"]
+    has_admin_role = user.role in allowed_roles
+    
+    if not user.is_admin and not has_admin_role and not user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
     return user

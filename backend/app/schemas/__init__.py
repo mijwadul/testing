@@ -1,5 +1,11 @@
 from .equipment import Equipment, EquipmentCreate, EquipmentUpdate
-from .employee import Employee, EmployeeCreate, EmployeeUpdate
+from .employee import (
+    Employee, EmployeeCreate, EmployeeUpdate,
+    EmployeePublic, EmployeePrivate, EmployeeListResponse,
+    PayrollCreate, PayrollUpdate, PayrollResponse, PayrollCalculate, PayrollCalculationResult,
+    AttendanceCreate, AttendanceUpdate, AttendanceResponse,
+    BonusDeductionCreate, BonusDeductionUpdate, BonusDeductionResponse
+)
 from .project import Project, ProjectCreate, ProjectUpdate
 from .user import User, UserCreate, UserUpdate, UserLogin, Token, TokenData
 from .fuel_log import (

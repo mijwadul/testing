@@ -9,6 +9,8 @@ class FuelLogBase(BaseModel):
     location: Optional[str] = None
     photo_url: Optional[str] = None
     notes: Optional[str] = None
+    hour_meter: Optional[float] = None
+    operating_hours: Optional[float] = None
 
 class FuelLogCreate(FuelLogBase):
     pass
@@ -19,6 +21,8 @@ class FuelLogUpdate(BaseModel):
     location: Optional[str] = None
     photo_url: Optional[str] = None
     notes: Optional[str] = None
+    hour_meter: Optional[float] = None
+    operating_hours: Optional[float] = None
 
 class FuelLog(FuelLogBase):
     id: int

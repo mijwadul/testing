@@ -59,15 +59,21 @@ const EquipmentPage = () => {
     const method = editingEquipment ? 'PUT' : 'POST';
 
     try {
+      // Convert empty strings to null for decimal fields to avoid 422 validation errors
+      const payload = {
+        ...formData,
+        rental_rate_per_hour: formData.rental_rate_per_hour === '' ? null : formData.rental_rate_per_hour,
+        deposit_amount: formData.deposit_amount === '' ? null : formData.deposit_amount,
+        vendor_id: formData.vendor_id === '' ? null : formData.vendor_id
+      };
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...formData
-        })
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -75,9 +81,16 @@ const EquipmentPage = () => {
         setShowForm(false);
         setEditingEquipment(null);
         resetForm();
+        toast.success(editingEquipment ? 'Equipment berhasil diupdate!' : 'Equipment berhasil ditambahkan!');
+      } else if (response.status === 422) {
+        const errorData = await response.json();
+        toast.error(`Validasi gagal: ${errorData.detail?.map?.(e => e.msg || e).join(', ') || 'Data tidak valid'}`);
+      } else {
+        toast.error('Gagal menyimpan equipment');
       }
     } catch (error) {
       console.error('Error saving equipment:', error);
+      toast.error('Terjadi kesalahan saat menyimpan equipment');
     }
   };
 
