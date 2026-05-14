@@ -1,26 +1,26 @@
+# =============================================================
+# requirements.txt — Production dependencies
+# Install: pip install -r requirements.txt
+# =============================================================
+
 # ─── Core Framework ───────────────────────────────────────────
 fastapi
-uvicorn[standard]
+uvicorn[standard]          # includes websockets, watchfiles, httptools
 
 # ─── Database ─────────────────────────────────────────────────
 sqlalchemy
-alembic
-psycopg2-binary       # PostgreSQL driver (production)
+alembic                    # database migrations
+psycopg2-binary            # PostgreSQL driver (production)
 
 # ─── Validation & Settings ────────────────────────────────────
 pydantic
-pydantic-settings
+pydantic-settings          # membaca .env otomatis
 
 # ─── Auth & Security ──────────────────────────────────────────
-passlib[bcrypt]
-python-jose[cryptography]
+passlib[bcrypt]            # password hashing
+python-jose[cryptography]  # JWT token
 
 # ─── Utilities ────────────────────────────────────────────────
-python-multipart      # Form data (login)
-jinja2                # HTML templates
-weasyprint            # PDF generation
-
-# ─── Testing (dev only) ───────────────────────────────────────
-pytest
-pytest-asyncio
-httpx
+python-multipart           # parsing form data (login)
+jinja2                     # HTML templates
+weasyprint                 # generate laporan PDF

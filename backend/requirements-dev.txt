@@ -1,0 +1,13 @@
+# =============================================================
+# requirements-dev.txt — Development & Testing dependencies
+# Install: pip install -r requirements-dev.txt
+# (sudah include semua dari requirements.txt)
+# =============================================================
+
+# Semua production dependencies
+-r requirements.txt
+
+# ─── Testing ──────────────────────────────────────────────────
+pytest                     # test runner
+pytest-asyncio             # async test support
+httpx                      # HTTP client untuk TestClient FastAPI

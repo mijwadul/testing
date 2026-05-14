@@ -1,6 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, LogOut, Truck, Users, FolderOpen, Menu, X, ChevronLeft, ChevronRight, Fuel, Clock, ChevronDown, ChevronRightIcon, Factory, UserCog, Calendar, ShoppingCart, Wallet, TrendingUp, DollarSign, Briefcase } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  Home,
+  LogOut,
+  Truck,
+  Users,
+  FolderOpen,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Fuel,
+  Clock,
+  ChevronDown,
+  ChevronRightIcon,
+  Factory,
+  UserCog,
+  Calendar,
+  ShoppingCart,
+  Wallet,
+  TrendingUp,
+  DollarSign,
+  Briefcase,
+} from "lucide-react";
 
 const Sidebar = ({ children }) => {
   const navigate = useNavigate();
@@ -24,47 +46,47 @@ const Sidebar = ({ children }) => {
     };
 
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   // Fetch current user for role-based menu
   useEffect(() => {
     // First try to get from localStorage
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem("user");
     if (userStr) {
       try {
         setCurrentUser(JSON.parse(userStr));
       } catch (e) {
-        console.error('Error parsing user from localStorage:', e);
+        console.error("Error parsing user from localStorage:", e);
       }
     }
-    
+
     // Then fetch fresh data from API
     const fetchUser = async () => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) return;
       try {
-        const response = await fetch('/api/v1/auth/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const response = await fetch("/api/v1/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (response.ok) {
           const data = await response.json();
           setCurrentUser(data);
-          localStorage.setItem('user', JSON.stringify(data));
+          localStorage.setItem("user", JSON.stringify(data));
         }
       } catch (error) {
-        console.error('Error fetching user:', error);
+        console.error("Error fetching user:", error);
       }
     };
     fetchUser();
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setCurrentUser(null);
-    navigate('/login');
+    navigate("/login");
   };
 
   const [expandedMenu, setExpandedMenu] = useState(null);
@@ -72,49 +94,70 @@ const Sidebar = ({ children }) => {
   // Role-based menu filtering - Bina-ERP Roles: gm, finance, admin, field
   // Legacy roles: helper → field, checker → finance
   const getMenuItems = () => {
-    const role = currentUser?.role || 'field';
+    const role = currentUser?.role || "field";
     // GM level: gm, admin (legacy), is_admin flag
-    const isGM = role === 'gm' || role === 'admin' || currentUser?.is_admin;
+    const isGM = role === "gm" || role === "admin" || currentUser?.is_admin;
     // Finance level: finance, checker (legacy), GM level
-    const isFinance = role === 'finance' || role === 'checker' || isGM;
+    const isFinance = role === "finance" || role === "checker" || isGM;
     // Admin/HR level: admin, gm, GM level
-    const isAdmin = role === 'admin' || role === 'gm' || isGM;
+    const isAdmin = role === "admin" || role === "gm" || isGM;
     // Field level: field, helper (legacy), and above
-    const isField = role === 'field' || role === 'helper' || isAdmin || isFinance;
+    const isField =
+      role === "field" || role === "helper" || isAdmin || isFinance;
 
     const items = [
-      { path: '/dashboard', icon: Home, label: 'Dashboard', show: true },
+      { path: "/dashboard", icon: Home, label: "Dashboard", show: true },
     ];
 
     // 1. Equipment & Operasional submenu (All roles see equipment, Field sees operational logs)
     const equipmentSubmenu = [
-      { path: '/equipment', icon: Truck, label: 'Daftar Equipment', show: true },
-      { path: '/work-logs', icon: Clock, label: 'Log Jam Kerja', show: isField },
-      { path: '/fuel', icon: Fuel, label: 'Logistik BBM', show: isField },
-    ].filter(sub => sub.show);
+      {
+        path: "/equipment",
+        icon: Truck,
+        label: "Manajemen Equipment",
+        show: true,
+      },
+      {
+        path: "/work-logs",
+        icon: Clock,
+        label: "Log Jam Kerja Alat",
+        show: isField,
+      },
+      { path: "/fuel", icon: Fuel, label: "Logistik BBM", show: isField },
+    ].filter((sub) => sub.show);
 
     if (equipmentSubmenu.length > 0) {
       items.push({
-        id: 'equipment',
+        id: "equipment",
         icon: Factory,
-        label: 'Equipment & Operasional',
-        submenu: equipmentSubmenu
+        label: "Equipment & Operasional",
+        submenu: equipmentSubmenu,
       });
     }
 
     // 2. Karyawan dengan submenu (Admin & Field)
     if (isAdmin || isField) {
       const employeeSubmenu = [
-        { path: '/employees', icon: Users, label: 'Daftar Karyawan', show: isAdmin },
-        { path: '/attendance', icon: Calendar, label: 'Absensi', show: true },
-      ].filter(sub => sub.show);
-      
+        {
+          path: "/employees",
+          icon: Users,
+          label: "Manajemen Karyawan",
+          show: isAdmin,
+        },
+        {
+          path: "/attendance",
+          icon: Calendar,
+          label: "Absensi Karyawan",
+          show: true,
+        },
+      ].filter((sub) => sub.show);
+
       if (employeeSubmenu.length > 0) {
         items.push({
-          id: 'employees',
+          id: "employees",
           icon: UserCog,
-          label: 'Karyawan',
-          submenu: employeeSubmenu
+          label: "Karyawan",
+          submenu: employeeSubmenu,
         });
       }
     }
@@ -122,39 +165,74 @@ const Sidebar = ({ children }) => {
     // 3. Finance Menu (GM & Finance only)
     if (isFinance) {
       const financeSubmenu = [
-        { path: '/finance', icon: DollarSign, label: 'Dashboard Finance', show: true },
-        { path: '/finance/fuel-price', icon: Fuel, label: 'Harga BBM', show: true },
-        { path: '/finance/rental-rates', icon: Truck, label: 'Tarif Sewa', show: true },
-        { path: '/income', icon: Wallet, label: 'Pemasukan', show: true },
-        { path: '/material-sales', icon: ShoppingCart, label: 'Penjualan Material', show: true },
+        {
+          path: "/finance",
+          icon: DollarSign,
+          label: "Finance Dashboard",
+          show: true,
+        },
+        {
+          path: "/finance/fuel-price",
+          icon: Fuel,
+          label: "Manajemen Harga BBM",
+          show: true,
+        },
+        {
+          path: "/finance/rental-rates",
+          icon: Truck,
+          label: "Tarif Sewa & Deposit",
+          show: true,
+        },
+        {
+          path: "/income",
+          icon: Wallet,
+          label: "Pemasukan & Pendapatan",
+          show: true,
+        },
+        {
+          path: "/material-sales",
+          icon: ShoppingCart,
+          label: "Penjualan Material Tambang",
+          show: true,
+        },
       ];
       items.push({
-        id: 'finance',
+        id: "finance",
         icon: Briefcase,
-        label: 'Finance',
-        submenu: financeSubmenu
+        label: "Finance",
+        submenu: financeSubmenu,
       });
     }
 
     // 4. Project (All roles except pure field may see differently)
     const projectSubmenu = [
-      { path: '/projects', icon: FolderOpen, label: 'Daftar Projects', show: true },
+      {
+        path: "/projects",
+        icon: FolderOpen,
+        label: "Project Management",
+        show: true,
+      },
     ];
     if (projectSubmenu.length > 0) {
       items.push({
-        id: 'projects',
+        id: "projects",
         icon: TrendingUp,
-        label: 'Project',
-        submenu: projectSubmenu
+        label: "Project",
+        submenu: projectSubmenu,
       });
     }
 
     // User Management - GM only
     if (isGM) {
-      items.push({ path: '/users', icon: Users, label: 'Manajemen User', show: true });
+      items.push({
+        path: "/users",
+        icon: Users,
+        label: "Manajemen User",
+        show: true,
+      });
     }
 
-    return items.filter(item => item.show !== false);
+    return items.filter((item) => item.show !== false);
   };
 
   const mainMenuItems = getMenuItems();
@@ -178,7 +256,10 @@ const Sidebar = ({ children }) => {
 
         {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setMobileMenuOpen(false)}>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setMobileMenuOpen(false)}
+          >
             <div
               className="absolute top-16 left-0 right-0 bg-green-800 text-white shadow-lg"
               onClick={(e) => e.stopPropagation()}
@@ -189,28 +270,36 @@ const Sidebar = ({ children }) => {
                   if (item.show === false) return null;
                   if (item.submenu) {
                     const isExpanded = expandedMenu === item.id;
-                    const hasActiveChild = item.submenu.some(sub => isActive(sub.path));
+                    const hasActiveChild = item.submenu.some((sub) =>
+                      isActive(sub.path),
+                    );
                     return (
                       <div key={item.id}>
                         <button
-                          onClick={() => setExpandedMenu(isExpanded ? null : item.id)}
+                          onClick={() =>
+                            setExpandedMenu(isExpanded ? null : item.id)
+                          }
                           className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
                             hasActiveChild
-                              ? 'bg-green-600 text-white'
-                              : 'hover:bg-green-700 text-green-100'
+                              ? "bg-green-600 text-white"
+                              : "hover:bg-green-700 text-green-100"
                           }`}
                         >
                           <div className="flex items-center space-x-3">
                             <item.icon size={20} />
                             <span>{item.label}</span>
                           </div>
-                          {isExpanded ? <ChevronDown size={16} /> : <ChevronRightIcon size={16} />}
+                          {isExpanded ? (
+                            <ChevronDown size={16} />
+                          ) : (
+                            <ChevronRightIcon size={16} />
+                          )}
                         </button>
                         {isExpanded && (
                           <div className="ml-4 mt-1 space-y-1">
                             {item.submenu.map((sub) => {
                               const isSubActive = isActive(sub.path);
-                              const isFuelSub = sub.path === '/fuel';
+                              const isFuelSub = sub.path === "/fuel";
                               return (
                                 <Link
                                   key={sub.path}
@@ -219,14 +308,21 @@ const Sidebar = ({ children }) => {
                                   className={`flex items-center space-x-3 p-2 rounded-lg text-sm transition-colors ${
                                     isSubActive
                                       ? isFuelSub
-                                        ? 'bg-amber-600 text-white'
-                                        : 'bg-green-500 text-white'
+                                        ? "bg-amber-600 text-white"
+                                        : "bg-green-500 text-white"
                                       : isFuelSub
-                                        ? 'hover:bg-amber-700 text-amber-100'
-                                        : 'hover:bg-green-700 text-green-200'
+                                        ? "hover:bg-amber-700 text-amber-100"
+                                        : "hover:bg-green-700 text-green-200"
                                   }`}
                                 >
-                                  <sub.icon size={18} className={isFuelSub && !isSubActive ? 'text-amber-300' : ''} />
+                                  <sub.icon
+                                    size={18}
+                                    className={
+                                      isFuelSub && !isSubActive
+                                        ? "text-amber-300"
+                                        : ""
+                                    }
+                                  />
                                   <span>{sub.label}</span>
                                 </Link>
                               );
@@ -244,8 +340,8 @@ const Sidebar = ({ children }) => {
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
                         isItemActive
-                          ? 'bg-green-600 text-white'
-                          : 'hover:bg-green-700 text-green-100'
+                          ? "bg-green-600 text-white"
+                          : "hover:bg-green-700 text-green-100"
                       }`}
                     >
                       <item.icon size={20} />
@@ -266,9 +362,7 @@ const Sidebar = ({ children }) => {
         )}
 
         {/* Mobile Content */}
-        <div className="pt-16 p-4">
-          {children}
-        </div>
+        <div className="pt-16 p-4">{children}</div>
       </div>
     );
   }
@@ -279,7 +373,7 @@ const Sidebar = ({ children }) => {
       {/* Sidebar */}
       <div
         className={`h-screen bg-green-800 text-white transition-all duration-300 ease-in-out flex flex-col ${
-          isOpen ? 'w-64' : 'w-20'
+          isOpen ? "w-64" : "w-20"
         }`}
       >
         {/* Header */}
@@ -303,31 +397,41 @@ const Sidebar = ({ children }) => {
             // Skip items that shouldn't be shown
             if (item.show === false) return null;
             if (item.submenu) {
-              const isExpanded = expandedMenu === item.id || (!isOpen && item.submenu.some(sub => isActive(sub.path)));
-              const hasActiveChild = item.submenu.some(sub => isActive(sub.path));
+              const isExpanded =
+                expandedMenu === item.id ||
+                (!isOpen && item.submenu.some((sub) => isActive(sub.path)));
+              const hasActiveChild = item.submenu.some((sub) =>
+                isActive(sub.path),
+              );
               return (
                 <div key={item.id}>
                   {isOpen ? (
                     <>
                       <button
-                        onClick={() => setExpandedMenu(isExpanded ? null : item.id)}
+                        onClick={() =>
+                          setExpandedMenu(isExpanded ? null : item.id)
+                        }
                         className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
                           hasActiveChild
-                            ? 'bg-green-600 text-white'
-                            : 'hover:bg-green-700 text-green-100'
+                            ? "bg-green-600 text-white"
+                            : "hover:bg-green-700 text-green-100"
                         }`}
                       >
                         <div className="flex items-center space-x-3">
                           <item.icon size={20} />
                           <span>{item.label}</span>
                         </div>
-                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRightIcon size={16} />}
+                        {isExpanded ? (
+                          <ChevronDown size={16} />
+                        ) : (
+                          <ChevronRightIcon size={16} />
+                        )}
                       </button>
                       {isExpanded && (
                         <div className="ml-4 mt-1 space-y-1">
                           {item.submenu.map((sub) => {
                             const isSubActive = isActive(sub.path);
-                            const isFuelSub = sub.path === '/fuel';
+                            const isFuelSub = sub.path === "/fuel";
                             return (
                               <Link
                                 key={sub.path}
@@ -335,15 +439,22 @@ const Sidebar = ({ children }) => {
                                 className={`flex items-center space-x-3 p-2 rounded-lg text-sm transition-colors ${
                                   isSubActive
                                     ? isFuelSub
-                                      ? 'bg-amber-600 text-white'
-                                      : 'bg-green-500 text-white'
+                                      ? "bg-amber-600 text-white"
+                                      : "bg-green-500 text-white"
                                     : isFuelSub
-                                      ? 'hover:bg-amber-700 text-amber-100'
-                                      : 'hover:bg-green-700 text-green-200'
+                                      ? "hover:bg-amber-700 text-amber-100"
+                                      : "hover:bg-green-700 text-green-200"
                                 }`}
                                 title={sub.label}
                               >
-                                <sub.icon size={18} className={isFuelSub && !isSubActive ? 'text-amber-300' : ''} />
+                                <sub.icon
+                                  size={18}
+                                  className={
+                                    isFuelSub && !isSubActive
+                                      ? "text-amber-300"
+                                      : ""
+                                  }
+                                />
                                 <span>{sub.label}</span>
                               </Link>
                             );
@@ -355,11 +466,15 @@ const Sidebar = ({ children }) => {
                     // Collapsed state - show icon only with tooltip-like behavior
                     <div className="relative group">
                       <button
-                        onClick={() => setExpandedMenu(expandedMenu === item.id ? null : item.id)}
+                        onClick={() =>
+                          setExpandedMenu(
+                            expandedMenu === item.id ? null : item.id,
+                          )
+                        }
                         className={`w-full flex items-center justify-center p-3 rounded-lg transition-colors ${
                           hasActiveChild
-                            ? 'bg-green-600 text-white'
-                            : 'hover:bg-green-700 text-green-100'
+                            ? "bg-green-600 text-white"
+                            : "hover:bg-green-700 text-green-100"
                         }`}
                         title={item.label}
                       >
@@ -381,10 +496,10 @@ const Sidebar = ({ children }) => {
                 to={item.path}
                 className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
                   isItemActive
-                    ? 'bg-green-600 text-white'
-                    : 'hover:bg-green-700 text-green-100'
-                } ${!isOpen && 'justify-center'}`}
-                title={!isOpen ? item.label : ''}
+                    ? "bg-green-600 text-white"
+                    : "hover:bg-green-700 text-green-100"
+                } ${!isOpen && "justify-center"}`}
+                title={!isOpen ? item.label : ""}
               >
                 <item.icon size={20} />
                 {isOpen && <span>{item.label}</span>}
@@ -398,9 +513,9 @@ const Sidebar = ({ children }) => {
           <button
             onClick={handleLogout}
             className={`flex items-center space-x-3 p-3 rounded-lg hover:bg-red-600 text-red-100 transition-colors w-full ${
-              !isOpen && 'justify-center'
+              !isOpen && "justify-center"
             }`}
-            title={!isOpen ? 'Logout' : ''}
+            title={!isOpen ? "Logout" : ""}
           >
             <LogOut size={20} />
             {isOpen && <span>Logout</span>}
@@ -409,9 +524,7 @@ const Sidebar = ({ children }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 h-screen overflow-y-auto p-6">
-        {children}
-      </div>
+      <div className="flex-1 h-screen overflow-y-auto p-6">{children}</div>
     </div>
   );
 };
