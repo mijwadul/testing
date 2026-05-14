@@ -21,4 +21,5 @@ from .fuel_price import (
     FuelPriceCreate,
     FuelPriceUpdate,
 )
+from .loan import EmployeeLoanCreate, EmployeeLoanUpdate, EmployeeLoanResponse
 from .work_log import WorkLog, WorkLogCreate, WorkLogUpdate, WorkLogWithEquipment, WorkLogWithProject, WorkLogStats, WorkEfficiencyStats

@@ -42,6 +42,8 @@ const EmployeesPage = () => {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteEmployeeId, setDeleteEmployeeId] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedEmployeeDetail, setSelectedEmployeeDetail] = useState(null);
   
   // Payroll state
   const [payrollRecords, setPayrollRecords] = useState([]);
@@ -49,7 +51,7 @@ const EmployeesPage = () => {
   const [showPayrollForm, setShowPayrollForm] = useState(false);
   const [payrollCalculation, setPayrollCalculation] = useState(null);
   
-  // Form states - Admin/HR form (tanpa data finansial)
+  // Form states - Comprehensive employee form (personal + financial)
   const [employeeForm, setEmployeeForm] = useState({
     name: '',
     email: '',
@@ -66,7 +68,16 @@ const EmployeesPage = () => {
     join_date: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
-    emergency_contact_relation: ''
+    emergency_contact_relation: '',
+    // Financial fields
+    daily_salary: '',
+    hourly_overtime_rate: '',
+    loan_balance: '',
+    loan_deduction_per_period: '',
+    debt_to_company: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_name: ''
   });
   
   // Finance form (data finansial terpisah)
@@ -95,6 +106,21 @@ const EmployeesPage = () => {
     deduction_note: '',
     notes: ''
   });
+
+  // Loan state
+  const [loans, setLoans] = useState([]);
+  const [selectedEmployeeForLoan, setSelectedEmployeeForLoan] = useState(null);
+  const [showLoanForm, setShowLoanForm] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [editingLoan, setEditingLoan] = useState(null);
+  const [loanForm, setLoanForm] = useState({
+    nominal: '',
+    loan_date: '',
+    deduction_per_period: '',
+    notes: ''
+  });
+  const [deleteLoanId, setDeleteLoanId] = useState(null);
+  const [showDeleteLoanModal, setShowDeleteLoanModal] = useState(false);
 
   // Fetch current user
   useEffect(() => {
@@ -166,6 +192,24 @@ const EmployeesPage = () => {
     }
   };
 
+  const fetchEmployeeDetail = async (employeeId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/employees/employees/${employeeId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedEmployeeDetail(data);
+      } else {
+        toast.error('Gagal memuat detail karyawan');
+      }
+    } catch (error) {
+      console.error('Error fetching employee detail:', error);
+      toast.error('Terjadi kesalahan saat memuat detail karyawan');
+    }
+  };
+
   const fetchPayrollRecords = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -178,6 +222,24 @@ const EmployeesPage = () => {
       }
     } catch (error) {
       console.error('Error fetching payroll:', error);
+    }
+  };
+
+  const fetchLoans = async (employeeId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/employees/loans/employee/${employeeId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLoans(data);
+      } else {
+        toast.error('Gagal memuat data pinjaman');
+      }
+    } catch (error) {
+      console.error('Error fetching loans:', error);
+      toast.error('Terjadi kesalahan saat memuat data pinjaman');
     }
   };
 
@@ -225,7 +287,10 @@ const EmployeesPage = () => {
         toast.success(editingEmployee ? 'Karyawan berhasil diupdate' : 'Karyawan berhasil ditambahkan');
         setShowEmployeeForm(false);
         resetEmployeeForm();
-        fetchEmployees();
+        await fetchEmployees();
+        if (editingEmployee?.id) {
+          await fetchEmployeeDetail(editingEmployee.id);
+        }
       } else {
         const error = await response.json();
         const errorMessage = typeof error.detail === 'string'
@@ -312,27 +377,51 @@ const EmployeesPage = () => {
     }
   };
 
-  const openEditForm = (employee) => {
-    setEditingEmployee(employee);
-    setEmployeeForm({
-      name: employee.name || '',
-      email: employee.email || '',
-      phone: employee.phone || '',
-      nik: employee.nik || '',
-      address: employee.address || '',
-      date_of_birth: employee.date_of_birth || '',
-      place_of_birth: employee.place_of_birth || '',
-      gender: employee.gender || '',
-      marital_status: employee.marital_status || '',
-      position: employee.position || '',
-      department: employee.department || '',
-      employment_type: employee.employment_type || 'permanent',
-      join_date: employee.join_date || '',
-      emergency_contact_name: employee.emergency_contact_name || '',
-      emergency_contact_phone: employee.emergency_contact_phone || '',
-      emergency_contact_relation: employee.emergency_contact_relation || ''
-    });
-    setShowEmployeeForm(true);
+  const openEditForm = async (employee) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/employees/employees/${employee.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const fullEmployeeData = await response.json();
+        setEditingEmployee(fullEmployeeData);
+        setEmployeeForm({
+          name: fullEmployeeData.name || '',
+          email: fullEmployeeData.email || '',
+          phone: fullEmployeeData.phone || '',
+          nik: fullEmployeeData.nik || '',
+          address: fullEmployeeData.address || '',
+          date_of_birth: fullEmployeeData.date_of_birth || '',
+          place_of_birth: fullEmployeeData.place_of_birth || '',
+          gender: fullEmployeeData.gender || '',
+          marital_status: fullEmployeeData.marital_status || '',
+          position: fullEmployeeData.position || '',
+          department: fullEmployeeData.department || '',
+          employment_type: fullEmployeeData.employment_type || 'permanent',
+          join_date: fullEmployeeData.join_date || '',
+          emergency_contact_name: fullEmployeeData.emergency_contact_name || '',
+          emergency_contact_phone: fullEmployeeData.emergency_contact_phone || '',
+          emergency_contact_relation: fullEmployeeData.emergency_contact_relation || '',
+          // Financial fields
+          daily_salary: fullEmployeeData.daily_salary || '',
+          hourly_overtime_rate: fullEmployeeData.hourly_overtime_rate || '',
+          loan_balance: fullEmployeeData.loan_balance || '',
+          loan_deduction_per_period: fullEmployeeData.loan_deduction_per_period || '',
+          debt_to_company: fullEmployeeData.debt_to_company || '',
+          bank_name: fullEmployeeData.bank_name || '',
+          bank_account_number: fullEmployeeData.bank_account_number || '',
+          bank_account_name: fullEmployeeData.bank_account_name || ''
+        });
+        setShowEmployeeForm(true);
+      } else {
+        toast.error('Gagal memuat data karyawan');
+      }
+    } catch (error) {
+      console.error('Error fetching employee data:', error);
+      toast.error('Terjadi kesalahan saat memuat data karyawan');
+    }
   };
   
   const openFinanceModal = (employee) => {
@@ -348,6 +437,16 @@ const EmployeesPage = () => {
       bank_account_name: employee.bank_account_name || ''
     });
     setShowFinanceModal(true);
+  };
+
+  const openEmployeeDetail = async (employee) => {
+    setShowDetailModal(true);
+    await fetchEmployeeDetail(employee.id);
+  };
+
+  const closeEmployeeDetail = () => {
+    setSelectedEmployeeDetail(null);
+    setShowDetailModal(false);
   };
   
   const handleFinanceSubmit = async (e) => {
@@ -407,7 +506,16 @@ const EmployeesPage = () => {
       join_date: '',
       emergency_contact_name: '',
       emergency_contact_phone: '',
-      emergency_contact_relation: ''
+      emergency_contact_relation: '',
+      // Financial fields
+      daily_salary: '',
+      hourly_overtime_rate: '',
+      loan_balance: '',
+      loan_deduction_per_period: '',
+      debt_to_company: '',
+      bank_name: '',
+      bank_account_number: '',
+      bank_account_name: ''
     });
   };
   
@@ -437,6 +545,100 @@ const EmployeesPage = () => {
       notes: ''
     });
     setPayrollCalculation(null);
+  };
+
+  const handleLoanSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedEmployeeForLoan || !loanForm.nominal || !loanForm.loan_date) {
+      toast.error('Nominal dan tanggal pinjam harus diisi');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const url = editingLoan 
+        ? `/api/v1/employees/loans/${editingLoan.id}`
+        : `/api/v1/employees/loans?employee_id=${selectedEmployeeForLoan.id}`;
+      
+      const method = editingLoan ? 'PUT' : 'POST';
+      
+      const formData = {
+        nominal: parseFloat(loanForm.nominal),
+        loan_date: loanForm.loan_date,
+        deduction_per_period: loanForm.deduction_per_period ? parseFloat(loanForm.deduction_per_period) : 0,
+        notes: loanForm.notes || null
+      };
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      if (response.ok) {
+        toast.success(editingLoan ? 'Pinjaman berhasil diupdate' : 'Pinjaman berhasil ditambahkan');
+        setShowLoanForm(false);
+        resetLoanForm();
+        await fetchLoans(selectedEmployeeForLoan.id);
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Gagal menyimpan pinjaman');
+      }
+    } catch (error) {
+      console.error('Error saving loan:', error);
+      toast.error('Terjadi kesalahan saat menyimpan');
+    }
+  };
+
+  const handleDeleteLoan = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/employees/loans/${deleteLoanId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        toast.success('Pinjaman berhasil dihapus');
+        setShowDeleteLoanModal(false);
+        await fetchLoans(selectedEmployeeForLoan.id);
+      } else {
+        toast.error('Gagal menghapus pinjaman');
+      }
+    } catch (error) {
+      console.error('Error deleting loan:', error);
+      toast.error('Terjadi kesalahan saat menghapus');
+    }
+  };
+
+  const openLoanForm = (employee, loan = null) => {
+    setSelectedEmployeeForLoan(employee);
+    if (loan) {
+      setEditingLoan(loan);
+      setLoanForm({
+        nominal: loan.nominal.toString(),
+        loan_date: loan.loan_date,
+        deduction_per_period: loan.deduction_per_period?.toString() || '',
+        notes: loan.notes || ''
+      });
+    } else {
+      resetLoanForm();
+    }
+    setShowLoanForm(true);
+  };
+
+  const resetLoanForm = () => {
+    setEditingLoan(null);
+    setLoanForm({
+      nominal: '',
+      loan_date: '',
+      deduction_per_period: '',
+      notes: ''
+    });
   };
 
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
@@ -600,7 +802,13 @@ const EmployeesPage = () => {
                           {employee.name?.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{employee.name}</p>
+                          <button
+                            type="button"
+                            onClick={() => openEmployeeDetail(employee)}
+                            className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                          >
+                            {employee.name}
+                          </button>
                           <p className="text-xs text-gray-500">{employee.employee_code || '-'}</p>
                         </div>
                       </div>
@@ -676,6 +884,93 @@ const EmployeesPage = () => {
               </div>
             )}
           </div>
+
+          {showDetailModal && selectedEmployeeDetail && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold">Detail Karyawan</h2>
+                      <p className="text-sm text-gray-500">{selectedEmployeeDetail.position || '-'} - {selectedEmployeeDetail.department || '-'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeEmployeeDetail}
+                      className="text-gray-500 hover:text-gray-800"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Nama</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.name || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Email</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.email || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Telepon</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.phone || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">NIK</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.nik || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Alamat</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.address || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Status</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.status === 'active' ? 'Aktif' : 'Nonaktif'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Tipe Pekerjaan</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.employment_type || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Tanggal Masuk</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.join_date || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Jenis Kelamin</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.gender || '-'}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-600">Status Pernikahan</h3>
+                        <p className="text-gray-900">{selectedEmployeeDetail.marital_status || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-gray-600">Kontak Darurat</h3>
+                      <p className="text-gray-900">{selectedEmployeeDetail.emergency_contact_name || '-'} ({selectedEmployeeDetail.emergency_contact_relation || '-'})</p>
+                      <p className="text-gray-900">{selectedEmployeeDetail.emergency_contact_phone || '-'}</p>
+                    </div>
+                    {canAccessFinancial && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-600">Data Finansial</h3>
+                        <p className="text-gray-900">Gaji/Hari: {selectedEmployeeDetail.daily_salary ? `Rp ${parseFloat(selectedEmployeeDetail.daily_salary).toLocaleString('id-ID')}` : '-'}</p>
+                        <p className="text-gray-900">Saldo Pinjaman: {selectedEmployeeDetail.loan_balance ? `Rp ${parseFloat(selectedEmployeeDetail.loan_balance).toLocaleString('id-ID')}` : '-'}</p>
+                        <p className="text-gray-900">Bank: {selectedEmployeeDetail.bank_name || '-'}</p>
+                        <p className="text-gray-900">No. Rekening: {selectedEmployeeDetail.bank_account_number || '-'}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -765,6 +1060,100 @@ const EmployeesPage = () => {
             {payrollRecords.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 Belum ada record payroll
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Loans Tab */}
+      {activeTab === TABS.LOANS && canAccessFinancial && (
+        <div>
+          {/* Add Loan Button */}
+          <div className="mb-4 flex gap-4">
+            <select
+              value={selectedEmployeeForLoan?.id || ''}
+              onChange={(e) => {
+                const emp = employees.find(e => e.id === parseInt(e.target.value));
+                if (emp) {
+                  setSelectedEmployeeForLoan(emp);
+                  fetchLoans(emp.id);
+                }
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Pilih Karyawan</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name} - {emp.position}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => openLoanForm(selectedEmployeeForLoan)}
+              disabled={!selectedEmployeeForLoan}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Tambah Pinjaman
+            </button>
+          </div>
+
+          {/* Loans Table */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal Pinjam</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sisa Saldo</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Potongan/Periode</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {loans.map((loan) => (
+                  <tr key={loan.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm text-gray-900">{loan.loan_date}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">Rp {parseFloat(loan.nominal).toLocaleString('id-ID')}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">Rp {parseFloat(loan.remaining_balance).toLocaleString('id-ID')}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{loan.deduction_per_period ? `Rp ${parseFloat(loan.deduction_per_period).toLocaleString('id-ID')}` : '-'}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        loan.is_active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {loan.is_active ? 'Aktif' : 'Selesai'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => openLoanForm(selectedEmployeeForLoan, loan)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="Edit Pinjaman"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteLoanId(loan.id);
+                            setShowDeleteLoanModal(true);
+                          }}
+                          className="text-red-600 hover:text-red-800"
+                          title="Hapus Pinjaman"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {loans.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                {selectedEmployeeForLoan ? 'Tidak ada data pinjaman untuk karyawan ini' : 'Pilih karyawan untuk melihat riwayat pinjaman'}
               </div>
             )}
           </div>
@@ -918,6 +1307,123 @@ const EmployeesPage = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Financial Data - Only show if Finance/GM or editing */}
+                {(canAccessFinancial || editingEmployee) && (
+                  <>
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-gray-700 border-b pb-2">Data Gaji</h3>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Gaji per Hari (Rp)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={employeeForm.daily_salary}
+                          onChange={(e) => setEmployeeForm({...employeeForm, daily_salary: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="0"
+                          disabled={!canAccessFinancial}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Rate Lembur per Jam (Rp)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={employeeForm.hourly_overtime_rate}
+                          onChange={(e) => setEmployeeForm({...employeeForm, hourly_overtime_rate: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="0"
+                          disabled={!canAccessFinancial}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-gray-700 border-b pb-2">Pinjaman & Hutang</h3>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Sisa Pinjaman (Rp)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={employeeForm.loan_balance}
+                          onChange={(e) => setEmployeeForm({...employeeForm, loan_balance: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="0"
+                          disabled={!canAccessFinancial}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Potongan per Periode (Rp)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={employeeForm.loan_deduction_per_period}
+                          onChange={(e) => setEmployeeForm({...employeeForm, loan_deduction_per_period: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="0"
+                          disabled={!canAccessFinancial}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Hutang ke Perusahaan (Rp)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={employeeForm.debt_to_company}
+                          onChange={(e) => setEmployeeForm({...employeeForm, debt_to_company: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="0"
+                          disabled={!canAccessFinancial}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 md:col-span-2">
+                      <h3 className="font-semibold text-gray-700 border-b pb-2">Informasi Bank</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nama Bank</label>
+                          <input
+                            type="text"
+                            value={employeeForm.bank_name}
+                            onChange={(e) => setEmployeeForm({...employeeForm, bank_name: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Contoh: BCA, Mandiri, BRI"
+                            disabled={!canAccessFinancial}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Rekening</label>
+                          <input
+                            type="text"
+                            value={employeeForm.bank_account_number}
+                            onChange={(e) => setEmployeeForm({...employeeForm, bank_account_number: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Nomor rekening"
+                            disabled={!canAccessFinancial}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Atas Nama</label>
+                          <input
+                            type="text"
+                            value={employeeForm.bank_account_name}
+                            onChange={(e) => setEmployeeForm({...employeeForm, bank_account_name: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="Nama pemilik rekening"
+                            disabled={!canAccessFinancial}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Actions */}
@@ -1231,6 +1737,89 @@ const EmployeesPage = () => {
         </div>
       )}
 
+      {/* Loan Form Modal */}
+      {showLoanForm && selectedEmployeeForLoan && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold">
+                {editingLoan ? 'Edit Pinjaman' : 'Tambah Pinjaman'}
+              </h2>
+              <p className="text-sm text-gray-500">{selectedEmployeeForLoan.name} - {selectedEmployeeForLoan.position}</p>
+            </div>
+            <form onSubmit={handleLoanSubmit} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nominal Pinjaman (Rp) *</label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={loanForm.nominal}
+                    onChange={(e) => setLoanForm({...loanForm, nominal: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Masukkan nominal pinjaman"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Pinjam *</label>
+                  <input
+                    type="date"
+                    required
+                    value={loanForm.loan_date}
+                    onChange={(e) => setLoanForm({...loanForm, loan_date: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Potongan per Periode (Rp)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={loanForm.deduction_per_period}
+                    onChange={(e) => setLoanForm({...loanForm, deduction_per_period: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Optional - Masukkan jumlah potongan per periode"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+                  <textarea
+                    value={loanForm.notes}
+                    onChange={(e) => setLoanForm({...loanForm, notes: e.target.value})}
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Catatan atau alasan pinjaman"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowLoanForm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {editingLoan ? 'Update' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       <AlertModal
         isOpen={showDeleteModal}
@@ -1238,6 +1827,18 @@ const EmployeesPage = () => {
         onConfirm={handleDeleteEmployee}
         title="Hapus Karyawan"
         message="Apakah Anda yakin ingin menghapus karyawan ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
+        cancelText="Batal"
+        type="danger"
+      />
+
+      {/* Delete Loan Confirmation Modal */}
+      <AlertModal
+        isOpen={showDeleteLoanModal}
+        onClose={() => setShowDeleteLoanModal(false)}
+        onConfirm={handleDeleteLoan}
+        title="Hapus Pinjaman"
+        message="Apakah Anda yakin ingin menghapus data pinjaman ini?"
         confirmText="Hapus"
         cancelText="Batal"
         type="danger"
