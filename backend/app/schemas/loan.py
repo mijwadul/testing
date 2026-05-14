@@ -1,23 +1,30 @@
-from pydantic import BaseModel
 from datetime import date, datetime
 from typing import Optional
 
+from pydantic import BaseModel, ConfigDict
+
+
 class EmployeeLoanCreate(BaseModel):
     """Schema untuk create loan"""
+
     nominal: float
     loan_date: date
     deduction_per_period: Optional[float] = 0
     notes: Optional[str] = None
 
+
 class EmployeeLoanUpdate(BaseModel):
     """Schema untuk update loan"""
+
     remaining_balance: Optional[float] = None
     deduction_per_period: Optional[float] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
+
 class EmployeeLoanResponse(BaseModel):
     """Schema response untuk loan"""
+
     id: int
     employee_id: int
     nominal: float
@@ -29,5 +36,4 @@ class EmployeeLoanResponse(BaseModel):
     created_at: datetime
     created_by: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

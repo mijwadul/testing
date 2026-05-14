@@ -17,5 +17,6 @@ class User(Base):
     phone = Column(String, nullable=True)
     employee_id = Column(String, nullable=True)  # Link to employee record
     last_login = Column(DateTime(timezone=True), nullable=True)
+    password_change_required = Column(Boolean, default=False, nullable=False)  # Force password change on first login
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

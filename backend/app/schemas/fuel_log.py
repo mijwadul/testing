@@ -1,6 +1,8 @@
-from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
+
 
 class FuelLogBase(BaseModel):
     equipment_id: int
@@ -12,8 +14,10 @@ class FuelLogBase(BaseModel):
     hour_meter: Optional[float] = None
     operating_hours: Optional[float] = None
 
+
 class FuelLogCreate(FuelLogBase):
     pass
+
 
 class FuelLogUpdate(BaseModel):
     liters_filled: Optional[float] = None
@@ -24,18 +28,20 @@ class FuelLogUpdate(BaseModel):
     hour_meter: Optional[float] = None
     operating_hours: Optional[float] = None
 
+
 class FuelLog(FuelLogBase):
     id: int
     recorded_by: Optional[int] = None
     created_at: datetime
     refuel_date: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 class FuelLogWithEquipment(FuelLog):
     equipment_name: str
     equipment_type: str
+
 
 class FuelEfficiencyStats(BaseModel):
     total_fuel_consumed: float

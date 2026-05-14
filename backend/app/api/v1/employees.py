@@ -8,27 +8,45 @@ Role Access:
 - Field: No access to employee menu
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, between
 
-from ...core.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, between, func
+from sqlalchemy.orm import Session
+
 from ...core.auth import get_current_user, require_admin, require_role
+from ...core.database import get_db
 from ...models import (
-    Employee, User, PayrollRecord, Attendance, BonusDeduction, EmployeeLoan
+    Attendance,
+    BonusDeduction,
+    Employee,
+    EmployeeLoan,
+    PayrollRecord,
+    User,
 )
 from ...schemas import (
-    Employee as EmployeeSchema,
-    EmployeeCreate, EmployeeUpdate,
-    EmployeePublic, EmployeePrivate, EmployeeListResponse,
-    PayrollCreate, PayrollUpdate, PayrollResponse,
-    PayrollCalculate, PayrollCalculationResult,
-    AttendanceCreate, AttendanceUpdate, AttendanceResponse,
-    BonusDeductionCreate, BonusDeductionUpdate, BonusDeductionResponse,
-    EmployeeLoanCreate, EmployeeLoanUpdate, EmployeeLoanResponse
+    AttendanceCreate,
+    AttendanceResponse,
+    AttendanceUpdate,
+    BonusDeductionCreate,
+    BonusDeductionResponse,
+    BonusDeductionUpdate,
+    EmployeeCreate,
+    EmployeeListResponse,
+    EmployeeLoanCreate,
+    EmployeeLoanResponse,
+    EmployeeLoanUpdate,
+    EmployeePrivate,
+    EmployeePublic,
+    EmployeeUpdate,
+    PayrollCalculate,
+    PayrollCalculationResult,
+    PayrollCreate,
+    PayrollResponse,
+    PayrollUpdate,
 )
+from ...schemas import Employee as EmployeeSchema
 
 router = APIRouter()
 
@@ -36,15 +54,18 @@ router = APIRouter()
 # Helper Functions
 # ============================================
 
+
 def check_finance_access(user: User):
     """Check if user has Finance/GM access for financial data"""
     finance_roles = ["gm", "finance", "admin", "checker"]
     return user.role in finance_roles or user.is_admin or user.is_superuser
 
+
 def check_admin_access(user: User):
     """Check if user has Admin/GM access for employee management"""
     admin_roles = ["gm", "admin", "helper"]
     return user.role in admin_roles or user.is_admin or user.is_superuser
+
 
 def calculate_payroll(
     employee: Employee,
@@ -54,23 +75,27 @@ def calculate_payroll(
     bonus: float = 0,
     allowance: float = 0,
     other_deduction: float = 0,
-    db: Session = None
+    db: Session = None,
 ) -> PayrollCalculationResult:
     """
     Calculate payroll for an employee
     """
     # Get attendance data
     if db:
-        present_days = db.query(Attendance).filter(
-            and_(
-                Attendance.employee_id == employee.id,
-                between(Attendance.date, period_start, period_end),
-                Attendance.status.in_(["present", "late"])
+        present_days = (
+            db.query(Attendance)
+            .filter(
+                and_(
+                    Attendance.employee_id == employee.id,
+                    between(Attendance.date, period_start, period_end),
+                    Attendance.status.in_(["present", "late"]),
+                )
             )
-        ).count()
+            .count()
+        )
     else:
         present_days = 0  # Default if no DB
-    
+
     # Calculate work days in period (exclude weekends)
     work_days = 0
     current = period_start
@@ -78,31 +103,33 @@ def calculate_payroll(
         if current.weekday() < 5:  # Monday = 0, Friday = 4
             work_days += 1
         current += timedelta(days=1)
-    
+
     absent_days = work_days - present_days
-    
+
     # Calculate income
     daily_salary = employee.daily_salary or 0
     hourly_overtime_rate = employee.hourly_overtime_rate or 0
-    
+
     basic_salary = daily_salary * present_days
     overtime_amount = hourly_overtime_rate * overtime_hours
-    
+
     total_income = basic_salary + overtime_amount + bonus + allowance
-    
+
     # Calculate deductions
-    loan_deduction = min(employee.loan_deduction_per_period or 0, employee.loan_balance or 0)
+    loan_deduction = min(
+        employee.loan_deduction_per_period or 0, employee.loan_balance or 0
+    )
     debt_deduction = min(employee.debt_to_company or 0, employee.debt_to_company or 0)
-    
+
     total_deduction = loan_deduction + debt_deduction + other_deduction
-    
+
     # Calculate net salary
     net_salary = total_income - total_deduction
-    
+
     # Calculate remaining balances
     loan_remaining = max(0, (employee.loan_balance or 0) - loan_deduction)
     debt_remaining = max(0, (employee.debt_to_company or 0) - debt_deduction)
-    
+
     return PayrollCalculationResult(
         employee_id=employee.id,
         employee_name=employee.name,
@@ -122,12 +149,14 @@ def calculate_payroll(
         total_deduction=total_deduction,
         net_salary=net_salary,
         loan_remaining=loan_remaining,
-        debt_remaining=debt_remaining
+        debt_remaining=debt_remaining,
     )
+
 
 # ============================================
 # Employee Endpoints
 # ============================================
+
 
 @router.get("/employees", response_model=List[EmployeeListResponse])
 def get_employees(
@@ -137,7 +166,7 @@ def get_employees(
     status: Optional[str] = None,
     show_inactive: bool = False,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get list of employees.
@@ -146,18 +175,18 @@ def get_employees(
     - Default: Only show active employees (is_active=True)
     """
     query = db.query(Employee)
-    
+
     # Default: only show active employees unless explicitly requested
     if not show_inactive:
         query = query.filter(Employee.is_active == True)
-    
+
     if department:
         query = query.filter(Employee.department == department)
     if status:
         query = query.filter(Employee.status == status)
-    
+
     employees = query.offset(skip).limit(limit).all()
-    
+
     result = []
     for emp in employees:
         emp_data = {
@@ -174,16 +203,17 @@ def get_employees(
         # Only Finance/GM can see salary info
         if check_finance_access(current_user):
             emp_data["daily_salary"] = emp.daily_salary
-        
+
         result.append(EmployeeListResponse(**emp_data))
-    
+
     return result
+
 
 @router.get("/employees/{employee_id}")
 def get_employee(
     employee_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get employee details.
@@ -193,19 +223,20 @@ def get_employee(
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     # Return full data for Finance/GM
     if check_finance_access(current_user):
-        return EmployeeSchema.from_orm(employee)
+        return EmployeeSchema.model_validate(employee)
     else:
         # Return public data (without financial info) for Admin/HR
-        return EmployeePublic.from_orm(employee)
+        return EmployeePublic.model_validate(employee)
+
 
 @router.post("/employees", response_model=EmployeeSchema)
 def create_employee(
     employee: EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create new employee.
@@ -214,34 +245,35 @@ def create_employee(
     if not check_admin_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Admin/HR can create employees"
+            detail="Only Admin/HR can create employees",
         )
-    
+
     # Check email uniqueness
     existing = db.query(Employee).filter(Employee.email == employee.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    
+
     # Check NIK uniqueness if provided
     if employee.nik:
         existing_nik = db.query(Employee).filter(Employee.nik == employee.nik).first()
         if existing_nik:
             raise HTTPException(status_code=400, detail="NIK already registered")
-    
+
     # Create employee
-    db_employee = Employee(**employee.dict(exclude_unset=True))
+    db_employee = Employee(**employee.model_dump(exclude_unset=True))
     db.add(db_employee)
     db.commit()
     db.refresh(db_employee)
-    
+
     return db_employee
+
 
 @router.put("/employees/{employee_id}", response_model=EmployeeSchema)
 def update_employee(
     employee_id: int,
     employee_update: EmployeeUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update employee.
@@ -251,70 +283,80 @@ def update_employee(
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     if not check_admin_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Admin/HR can update employees"
+            detail="Only Admin/HR can update employees",
         )
-    
-    update_data = employee_update.dict(exclude_unset=True)
-    
+
+    update_data = employee_update.model_dump(exclude_unset=True)
+
     # If not Finance/GM, remove financial fields from update
     if not check_finance_access(current_user):
         financial_fields = [
-            'daily_salary', 'hourly_overtime_rate', 'loan_balance',
-            'loan_deduction_per_period', 'debt_to_company', 'work_days_per_month'
+            "daily_salary",
+            "hourly_overtime_rate",
+            "loan_balance",
+            "loan_deduction_per_period",
+            "debt_to_company",
+            "work_days_per_month",
         ]
         for field in financial_fields:
             if field in update_data:
                 del update_data[field]
-    
+
     # Update fields
     for key, value in update_data.items():
         setattr(employee, key, value)
-    
+
     db.commit()
     db.refresh(employee)
-    
+
     return employee
+
 
 @router.delete("/employees/{employee_id}")
 def delete_employee(
     employee_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Delete employee (soft delete by setting inactive).
     - Only GM can delete employees
     """
-    if current_user.role not in ["gm", "admin"] and not current_user.is_admin and not current_user.is_superuser:
+    if (
+        current_user.role not in ["gm", "admin"]
+        and not current_user.is_admin
+        and not current_user.is_superuser
+    ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only GM can delete employees"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only GM can delete employees"
         )
-    
+
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     # Soft delete - set inactive
     employee.is_active = False
     employee.status = "terminated"
     db.commit()
-    
+
     return {"message": "Employee deleted successfully"}
+
 
 # ============================================
 # Payroll Endpoints
 # ============================================
 
+
 @router.post("/payroll/calculate", response_model=PayrollCalculationResult)
 def calculate_payroll_endpoint(
     calc_request: PayrollCalculate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Calculate payroll preview.
@@ -323,13 +365,15 @@ def calculate_payroll_endpoint(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can calculate payroll"
+            detail="Only Finance/GM can calculate payroll",
         )
-    
-    employee = db.query(Employee).filter(Employee.id == calc_request.employee_id).first()
+
+    employee = (
+        db.query(Employee).filter(Employee.id == calc_request.employee_id).first()
+    )
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     result = calculate_payroll(
         employee=employee,
         period_start=calc_request.period_start,
@@ -337,16 +381,17 @@ def calculate_payroll_endpoint(
         overtime_hours=calc_request.overtime_hours or 0,
         bonus=calc_request.bonus or 0,
         allowance=calc_request.allowance or 0,
-        db=db
+        db=db,
     )
-    
+
     return result
+
 
 @router.post("/payroll", response_model=PayrollResponse)
 def create_payroll(
     payroll: PayrollCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create payroll record.
@@ -356,13 +401,13 @@ def create_payroll(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can create payroll"
+            detail="Only Finance/GM can create payroll",
         )
-    
+
     employee = db.query(Employee).filter(Employee.id == payroll.employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     # Calculate payroll
     calc_result = calculate_payroll(
         employee=employee,
@@ -372,9 +417,9 @@ def create_payroll(
         bonus=payroll.bonus or 0,
         allowance=payroll.allowance or 0,
         other_deduction=payroll.other_deduction or 0,
-        db=db
+        db=db,
     )
-    
+
     # Create payroll record
     db_payroll = PayrollRecord(
         employee_id=payroll.employee_id,
@@ -394,25 +439,30 @@ def create_payroll(
         other_deduction=payroll.other_deduction or 0,
         total_deduction=calc_result.total_deduction,
         net_salary=calc_result.net_salary,
-        payment_status="approved" if current_user.role == "gm" or current_user.is_admin or current_user.is_superuser else "pending",
+        payment_status="approved"
+        if current_user.role == "gm"
+        or current_user.is_admin
+        or current_user.is_superuser
+        else "pending",
         notes=payroll.notes,
-        created_by=current_user.id
+        created_by=current_user.id,
     )
-    
+
     # If GM creates, auto-approve
     if current_user.role == "gm" or current_user.is_admin or current_user.is_superuser:
         db_payroll.approved_by = current_user.id
         db_payroll.approved_at = datetime.now()
-        
+
         # Update loan and debt balances
         employee.loan_balance = calc_result.loan_remaining
         employee.debt_to_company = calc_result.debt_remaining
-    
+
     db.add(db_payroll)
     db.commit()
     db.refresh(db_payroll)
-    
+
     return db_payroll
+
 
 @router.get("/payroll", response_model=List[PayrollResponse])
 def get_payroll_records(
@@ -421,7 +471,7 @@ def get_payroll_records(
     period_end: Optional[date] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get payroll records.
@@ -431,37 +481,38 @@ def get_payroll_records(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can view payroll"
+            detail="Only Finance/GM can view payroll",
         )
-    
+
     query = db.query(PayrollRecord)
-    
+
     if employee_id:
         query = query.filter(PayrollRecord.employee_id == employee_id)
     if period_start and period_end:
         query = query.filter(
             and_(
                 PayrollRecord.period_start >= period_start,
-                PayrollRecord.period_end <= period_end
+                PayrollRecord.period_end <= period_end,
             )
         )
     if status:
         query = query.filter(PayrollRecord.payment_status == status)
-    
+
     records = query.order_by(PayrollRecord.period_start.desc()).all()
-    
+
     # Add employee name
     for record in records:
         record.employee_name = record.employee.name if record.employee else None
-    
+
     return records
+
 
 @router.put("/payroll/{payroll_id}/approve", response_model=PayrollResponse)
 def approve_payroll(
     payroll_id: int,
     approval_note: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)  # Only GM can approve
+    current_user: User = Depends(require_admin),  # Only GM can approve
 ):
     """
     Approve payroll record.
@@ -470,36 +521,42 @@ def approve_payroll(
     payroll = db.query(PayrollRecord).filter(PayrollRecord.id == payroll_id).first()
     if not payroll:
         raise HTTPException(status_code=404, detail="Payroll record not found")
-    
+
     if payroll.payment_status != "pending":
         raise HTTPException(status_code=400, detail="Payroll already processed")
-    
+
     # Update status
     payroll.payment_status = "approved"
     payroll.approved_by = current_user.id
     payroll.approved_at = datetime.now()
     payroll.approval_note = approval_note
-    
+
     # Update loan and debt balances
     employee = payroll.employee
     if employee:
-        employee.loan_balance = max(0, (employee.loan_balance or 0) - payroll.loan_deduction)
-        employee.debt_to_company = max(0, (employee.debt_to_company or 0) - payroll.debt_deduction)
-    
+        employee.loan_balance = max(
+            0, (employee.loan_balance or 0) - payroll.loan_deduction
+        )
+        employee.debt_to_company = max(
+            0, (employee.debt_to_company or 0) - payroll.debt_deduction
+        )
+
     db.commit()
     db.refresh(payroll)
-    
+
     return payroll
+
 
 # ============================================
 # Attendance Endpoints
 # ============================================
 
+
 @router.post("/attendance", response_model=AttendanceResponse)
 def create_attendance(
     attendance: AttendanceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create attendance record.
@@ -512,33 +569,38 @@ def create_attendance(
     employee = db.query(Employee).filter(Employee.id == attendance.employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     # Field staff can only create for themselves
-    if current_user.role == "field" and not current_user.is_superuser and employee.user_id != current_user.id:
+    if (
+        current_user.role == "field"
+        and not current_user.is_superuser
+        and employee.user_id != current_user.id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only create attendance for yourself"
+            detail="Can only create attendance for yourself",
         )
 
-    attendance_data = attendance.dict(exclude_unset=True)
+    attendance_data = attendance.model_dump(exclude_unset=True)
 
     # Legacy helper can create attendance for any employee,
     # but date must always be the current access date.
     if current_user.role == "helper" and not current_user.is_superuser:
         attendance_data["date"] = date.today()
-    
+
     # Calculate work hours if check_out provided
     work_hours = 0
     if attendance.check_in and attendance.check_out:
         work_hours = (attendance.check_out - attendance.check_in).total_seconds() / 3600
-    
+
     db_attendance = Attendance(**attendance_data, work_hours=work_hours)
-    
+
     db.add(db_attendance)
     db.commit()
     db.refresh(db_attendance)
-    
+
     return db_attendance
+
 
 @router.get("/attendance", response_model=List[AttendanceResponse])
 def get_attendance(
@@ -546,7 +608,7 @@ def get_attendance(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get attendance records.
@@ -554,39 +616,40 @@ def get_attendance(
     - Admin/HR/Finance/GM: See all attendance
     """
     query = db.query(Attendance)
-    
+
     # Field staff can only see own attendance
     if current_user.role == "field" and not current_user.is_superuser:
         # Find employee linked to user
-        employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+        employee = (
+            db.query(Employee).filter(Employee.user_id == current_user.id).first()
+        )
         if employee:
             query = query.filter(Attendance.employee_id == employee.id)
         else:
             return []  # No employee linked, return empty
     elif employee_id:
         query = query.filter(Attendance.employee_id == employee_id)
-    
+
     if start_date and end_date:
         query = query.filter(
-            and_(
-                Attendance.date >= start_date,
-                Attendance.date <= end_date
-            )
+            and_(Attendance.date >= start_date, Attendance.date <= end_date)
         )
-    
+
     records = query.order_by(Attendance.date.desc()).all()
-    
+
     return records
+
 
 # ============================================
 # Bonus/Deduction Endpoints
 # ============================================
 
+
 @router.post("/bonus-deduction", response_model=BonusDeductionResponse)
 def create_bonus_deduction(
     data: BonusDeductionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create bonus or deduction record.
@@ -595,30 +658,30 @@ def create_bonus_deduction(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can create bonus/deduction"
+            detail="Only Finance/GM can create bonus/deduction",
         )
-    
+
     employee = db.query(Employee).filter(Employee.id == data.employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     db_record = BonusDeduction(
-        **data.dict(exclude_unset=True),
-        created_by=current_user.id
+        **data.model_dump(exclude_unset=True), created_by=current_user.id
     )
-    
+
     db.add(db_record)
     db.commit()
     db.refresh(db_record)
-    
+
     return db_record
+
 
 @router.get("/bonus-deduction", response_model=List[BonusDeductionResponse])
 def get_bonus_deductions(
     employee_id: Optional[int] = None,
     type: Optional[str] = None,  # bonus or deduction
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get bonus/deduction records.
@@ -627,71 +690,73 @@ def get_bonus_deductions(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can view bonus/deduction records"
+            detail="Only Finance/GM can view bonus/deduction records",
         )
-    
+
     query = db.query(BonusDeduction)
-    
+
     if employee_id:
         query = query.filter(BonusDeduction.employee_id == employee_id)
     if type:
         query = query.filter(BonusDeduction.type == type)
-    
+
     records = query.order_by(BonusDeduction.effective_date.desc()).all()
-    
+
     return records
+
 
 # ============================================
 # Department & Summary Endpoints
 # ============================================
 
+
 @router.get("/departments")
 def get_departments(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get list of unique departments"""
     departments = db.query(Employee.department).distinct().all()
     return [d[0] for d in departments if d[0]]
 
+
 @router.get("/summary")
 def get_employee_summary(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """
     Get employee summary statistics.
     """
     total_employees = db.query(Employee).filter(Employee.is_active == True).count()
-    
+
     # Count by status
-    active_count = db.query(Employee).filter(
-        Employee.is_active == True,
-        Employee.status == "active"
-    ).count()
-    
+    active_count = (
+        db.query(Employee)
+        .filter(Employee.is_active == True, Employee.status == "active")
+        .count()
+    )
+
     on_leave_count = db.query(Employee).filter(Employee.status == "on_leave").count()
-    
+
     # Count with loans/debts
     with_loan = db.query(Employee).filter(Employee.loan_balance > 0).count()
     with_debt = db.query(Employee).filter(Employee.debt_to_company > 0).count()
-    
+
     result = {
         "total_employees": total_employees,
         "active_employees": active_count,
         "on_leave_employees": on_leave_count,
         "with_loan": with_loan,
-        "with_debt": with_debt
+        "with_debt": with_debt,
     }
-    
+
     # Add financial summary for Finance/GM
     if check_finance_access(current_user):
         total_loan = db.query(func.sum(Employee.loan_balance)).scalar() or 0
         total_debt = db.query(func.sum(Employee.debt_to_company)).scalar() or 0
-        
+
         result["total_loan_amount"] = total_loan
         result["total_debt_amount"] = total_debt
-    
+
     return result
 
 
@@ -699,12 +764,13 @@ def get_employee_summary(
 # Employee Loan Endpoints
 # ============================================
 
+
 @router.post("/loans", response_model=EmployeeLoanResponse)
 def create_loan(
     employee_id: int,
     loan_data: EmployeeLoanCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create employee loan record.
@@ -713,13 +779,13 @@ def create_loan(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can manage loans"
+            detail="Only Finance/GM can manage loans",
         )
-    
+
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
+
     # Create loan
     db_loan = EmployeeLoan(
         employee_id=employee_id,
@@ -728,19 +794,20 @@ def create_loan(
         remaining_balance=loan_data.nominal,
         deduction_per_period=loan_data.deduction_per_period or 0,
         notes=loan_data.notes,
-        created_by=current_user.id
+        created_by=current_user.id,
     )
     db.add(db_loan)
     db.commit()
     db.refresh(db_loan)
-    
+
     return db_loan
+
 
 @router.get("/loans/employee/{employee_id}", response_model=List[EmployeeLoanResponse])
 def get_employee_loans(
     employee_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get loans for specific employee.
@@ -749,15 +816,21 @@ def get_employee_loans(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can view loan details"
+            detail="Only Finance/GM can view loan details",
         )
-    
+
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
-    loans = db.query(EmployeeLoan).filter(EmployeeLoan.employee_id == employee_id).order_by(EmployeeLoan.loan_date.desc()).all()
+
+    loans = (
+        db.query(EmployeeLoan)
+        .filter(EmployeeLoan.employee_id == employee_id)
+        .order_by(EmployeeLoan.loan_date.desc())
+        .all()
+    )
     return loans
+
 
 @router.get("/loans", response_model=List[EmployeeLoanResponse])
 def get_all_loans(
@@ -766,7 +839,7 @@ def get_all_loans(
     employee_id: Optional[int] = None,
     is_active: Optional[bool] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all loans.
@@ -775,26 +848,29 @@ def get_all_loans(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can view loan data"
+            detail="Only Finance/GM can view loan data",
         )
-    
+
     query = db.query(EmployeeLoan)
-    
+
     if employee_id:
         query = query.filter(EmployeeLoan.employee_id == employee_id)
-    
+
     if is_active is not None:
         query = query.filter(EmployeeLoan.is_active == is_active)
-    
-    loans = query.order_by(EmployeeLoan.loan_date.desc()).offset(skip).limit(limit).all()
+
+    loans = (
+        query.order_by(EmployeeLoan.loan_date.desc()).offset(skip).limit(limit).all()
+    )
     return loans
+
 
 @router.put("/loans/{loan_id}", response_model=EmployeeLoanResponse)
 def update_loan(
     loan_id: int,
     loan_update: EmployeeLoanUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update loan record.
@@ -803,27 +879,28 @@ def update_loan(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can update loans"
+            detail="Only Finance/GM can update loans",
         )
-    
+
     loan = db.query(EmployeeLoan).filter(EmployeeLoan.id == loan_id).first()
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
-    
-    update_data = loan_update.dict(exclude_unset=True)
+
+    update_data = loan_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(loan, key, value)
-    
+
     db.commit()
     db.refresh(loan)
-    
+
     return loan
+
 
 @router.delete("/loans/{loan_id}")
 def delete_loan(
     loan_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Delete loan record.
@@ -832,14 +909,14 @@ def delete_loan(
     if not check_finance_access(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Finance/GM can delete loans"
+            detail="Only Finance/GM can delete loans",
         )
-    
+
     loan = db.query(EmployeeLoan).filter(EmployeeLoan.id == loan_id).first()
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
-    
+
     db.delete(loan)
     db.commit()
-    
+
     return {"message": "Loan deleted successfully"}

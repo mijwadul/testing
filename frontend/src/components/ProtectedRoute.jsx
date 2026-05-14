@@ -1,31 +1,55 @@
-import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { getToken } from '../api/auth';
+import React, { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { getToken } from "../api/auth";
+import { API_URL } from "../api/apiClient";
 
 const ProtectedRoute = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
+  // null = sedang cek, true = valid, false = tidak valid
+  const [authState, setAuthState] = useState(null);
 
   useEffect(() => {
-    const checkAuth = () => {
+    const validateToken = async () => {
       const token = getToken();
-      setIsAuthenticated(!!token);
+
+      if (!token) {
+        setAuthState(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          setAuthState(true);
+        } else {
+          // Token tidak valid atau sudah expired
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          setAuthState(false);
+        }
+      } catch {
+        // Network error — tetap anggap tidak valid
+        setAuthState(false);
+      }
     };
 
-    checkAuth();
+    validateToken();
   }, []);
 
-  if (isAuthenticated === null) {
+  if (authState === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-800 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Memverifikasi sesi...</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!authState) {
     return <Navigate to="/login" replace />;
   }
 

@@ -1,12 +1,26 @@
+# ─── Core Framework ───────────────────────────────────────────
 fastapi
 uvicorn[standard]
+
+# ─── Database ─────────────────────────────────────────────────
 sqlalchemy
 alembic
-psycopg2-binary
+psycopg2-binary       # PostgreSQL driver (production)
+
+# ─── Validation & Settings ────────────────────────────────────
 pydantic
 pydantic-settings
-python-multipart
-jinja2
-weasyprint
+
+# ─── Auth & Security ──────────────────────────────────────────
 passlib[bcrypt]
 python-jose[cryptography]
+
+# ─── Utilities ────────────────────────────────────────────────
+python-multipart      # Form data (login)
+jinja2                # HTML templates
+weasyprint            # PDF generation
+
+# ─── Testing (dev only) ───────────────────────────────────────
+pytest
+pytest-asyncio
+httpx

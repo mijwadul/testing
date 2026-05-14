@@ -1,6 +1,8 @@
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
+
 
 class ProjectBase(BaseModel):
     name: str
@@ -11,16 +13,18 @@ class ProjectBase(BaseModel):
     progress: Optional[float] = 0.0
     status: Optional[str] = "ongoing"
 
+
 class ProjectCreate(ProjectBase):
     pass
 
+
 class ProjectUpdate(ProjectBase):
     pass
+
 
 class Project(ProjectBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

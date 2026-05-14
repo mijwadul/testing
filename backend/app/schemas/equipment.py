@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class EquipmentBase(BaseModel):
     name: str
@@ -9,12 +11,14 @@ class EquipmentBase(BaseModel):
     location: Optional[str] = None
     status: Optional[str] = "active"
     ownership_status: Optional[str] = "internal"
-    rental_rate_per_hour: Optional[Decimal] = 0
-    deposit_amount: Optional[Decimal] = 0
+    rental_rate_per_hour: Optional[Decimal] = Decimal("0")
+    deposit_amount: Optional[Decimal] = Decimal("0")
     vendor_id: Optional[int] = None
+
 
 class EquipmentCreate(EquipmentBase):
     pass
+
 
 class EquipmentUpdate(BaseModel):
     name: Optional[str] = None
@@ -26,10 +30,10 @@ class EquipmentUpdate(BaseModel):
     deposit_amount: Optional[Decimal] = None
     vendor_id: Optional[int] = None
 
+
 class Equipment(EquipmentBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

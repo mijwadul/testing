@@ -53,7 +53,7 @@ def get_work_logs(
     equipment_id: Optional[int] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    input_method: Optional[str] = Query(None, regex="^(HM|MANUAL)$"),
+    input_method: Optional[str] = Query(None, pattern="^(HM|MANUAL)$"),
     db: Session = Depends(get_db)
 ):
     """Get work logs with optional filtering"""

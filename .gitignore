@@ -1,21 +1,122 @@
-node_modules/
-**/node_modules/
+# =============================================================
+# .gitignore — PT. Kusuma Samudera Berkah
+# =============================================================
 
-venv/
-**/venv/
-.venv/
-**/.venv/
-
+# ─── Python ───────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.pyo
 
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Distribusi & packaging
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+*.tar.gz
+MANIFEST
+
+# ─── Testing & Coverage ───────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.lcov
+nosetests.xml
+test-results/
+
+# ─── Database ─────────────────────────────────────────────────
+# Jangan commit file database — gunakan migration untuk schema
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Environment & Secrets ────────────────────────────────────
+# JANGAN pernah commit file .env yang berisi secrets!
 .env
-**/.env
 .env.*
+!.env.example
+!env.example
 
+# ─── Frontend ─────────────────────────────────────────────────
+node_modules/
 dist/
 build/
 .vite/
+*.local
 
+# ─── Logs & Temporary files ───────────────────────────────────
 *.log
+*.log.*
+logs/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ─── PDF & Media (generated files) ───────────────────────────
 *.pdf
+*.xlsx
+*.xls
+
+# ─── OS Files ─────────────────────────────────────────────────
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ─── IDE & Editor ─────────────────────────────────────────────
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# JetBrains (PyCharm, WebStorm, dll.)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Vim / Emacs
+*.swp
+*.swo
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ─── Docker ───────────────────────────────────────────────────
+# Volumes lokal Docker (jika mount ke folder project)
+docker-volumes/
+.docker/
+
+# ─── Alembic ──────────────────────────────────────────────────
+# File migrations DI-COMMIT — hanya abaikan cache-nya
+migrations/__pycache__/
+migrations/versions/__pycache__/

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Fuel, Eye, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { API_URL } from '../api/auth';
 import AlertModal from '../components/AlertModal';
 import EquipmentDetailModal from '../components/EquipmentDetailModal';
 
@@ -36,7 +37,7 @@ const EquipmentPage = () => {
   const fetchFuelReport = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/fuel/equipment-report', {
+      const response = await fetch(`${API_URL}/fuel/equipment-report`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -53,7 +54,7 @@ const EquipmentPage = () => {
   const fetchEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/equipment', {
+      const response = await fetch(`${API_URL}/equipment`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -73,8 +74,8 @@ const EquipmentPage = () => {
     e.preventDefault();
     const token = localStorage.getItem('token');
     const url = editingEquipment 
-      ? `/api/v1/equipment/${editingEquipment.id}` 
-      : '/api/v1/equipment';
+      ? `${API_URL}/equipment/${editingEquipment.id}` 
+      : `${API_URL}/equipment`;
     const method = editingEquipment ? 'PUT' : 'POST';
 
     try {
@@ -143,7 +144,7 @@ const EquipmentPage = () => {
 
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`/api/v1/equipment/${deleteEquipmentId}`, {
+      const response = await fetch(`${API_URL}/equipment/${deleteEquipmentId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
