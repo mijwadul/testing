@@ -34,6 +34,8 @@ import {
   PlusCircle,
   ClipboardCheck,
   Trash2,
+  XCircle,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import AlertModal from "../components/AlertModal";
@@ -114,6 +116,8 @@ export default function DashboardPage() {
   const [selectedFieldEmployee, setSelectedFieldEmployee] = useState("");
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [deleteAttendanceModal, setDeleteAttendanceModal] = useState({ isOpen: false, employeeId: null, attendanceId: null });
+  const [fuelActionModal, setFuelActionModal] = useState({ isOpen: false, id: null, action: null });
+  const [financeSummary, setFinanceSummary] = useState(null);
 
   const getToken = () => localStorage.getItem("token");
 
@@ -142,7 +146,7 @@ export default function DashboardPage() {
   const fetchAll = useCallback(async () => {
     setLoadingPayroll(true);
     try {
-      const [s, pe, fe, fr, eq, emp, proj] = await Promise.allSettled([
+      const promises = [
         authFetch(`${API_URL}/dashboard/stats`),
         authFetch(`${API_URL}/dashboard/payroll-summary`),
         authFetch(`${API_URL}/fuel/efficiency?days=30`),
@@ -150,18 +154,27 @@ export default function DashboardPage() {
         authFetch(`${API_URL}/dashboard/equipment`),
         authFetch(`${API_URL}/dashboard/employees`),
         authFetch(`${API_URL}/dashboard/projects`),
-      ]);
-      if (s.status === "fulfilled") setStats(s.value);
-      if (pe.status === "fulfilled") setPayrollSummary(pe.value);
-      if (fe.status === "fulfilled") setFuelStats(fe.value);
-      if (fr.status === "fulfilled") setFuelEquipmentReport(fr.value);
-      if (eq.status === "fulfilled") setEquipment(eq.value);
-      if (emp.status === "fulfilled") setEmployees(emp.value);
-      if (proj.status === "fulfilled") setProjects(proj.value);
+      ];
+      
+      if (currentUser?.role === 'finance' || currentUser?.role === 'gm' || currentUser?.is_admin || currentUser?.is_superuser) {
+        promises.push(authFetch(`${API_URL}/dashboard/finance-summary`));
+      }
+
+      const results = await Promise.allSettled(promises);
+      const [s, pe, fe, fr, eq, emp, proj, finSum] = results;
+      
+      if (s?.status === "fulfilled") setStats(s.value);
+      if (pe?.status === "fulfilled") setPayrollSummary(pe.value);
+      if (fe?.status === "fulfilled") setFuelStats(fe.value);
+      if (fr?.status === "fulfilled") setFuelEquipmentReport(fr.value);
+      if (eq?.status === "fulfilled") setEquipment(eq.value);
+      if (emp?.status === "fulfilled") setEmployees(emp.value);
+      if (proj?.status === "fulfilled") setProjects(proj.value);
+      if (finSum?.status === "fulfilled") setFinanceSummary(finSum.value);
     } finally {
       setLoadingPayroll(false);
     }
-  }, [authFetch]);
+  }, [authFetch, currentUser]);
 
   const fetchDailyReport = useCallback(async () => {
     setLoadingDaily(true);
@@ -226,6 +239,23 @@ export default function DashboardPage() {
       alert("Gagal approve payroll");
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  // ── approve/reject fuel ──
+  const handleFuelAction = async () => {
+    if (!fuelActionModal.id || !fuelActionModal.action) return;
+    try {
+      const res = await fetch(`${API_URL}/fuel/price/${fuelActionModal.id}/approve?status=${fuelActionModal.action}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error(`Gagal memproses pembelian BBM`);
+      toast.success(`Pembelian BBM ${fuelActionModal.action === 'approved' ? 'disetujui' : 'ditolak'}`);
+      setFuelActionModal({ isOpen: false, id: null, action: null });
+      fetchAll();
+    } catch (err) {
+      toast.error(err.message);
     }
   };
 
@@ -415,7 +445,102 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Finance Summary (Finance & GM) ─────────────────────────────────── */}
+      {(role === 'finance' || isGM) && financeSummary && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              Finance Summary
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              icon={Wallet}
+              label="Tagihan Unpaid"
+              value={formatIDR(financeSummary.unpaid_bills_amount)}
+              sub={`${financeSummary.unpaid_bills_count} tagihan menunggu`}
+              color="bg-red-500"
+              badge={financeSummary.unpaid_bills_count > 0 ? financeSummary.unpaid_bills_count : undefined}
+              onClick={() => navigate("/expenses")}
+            />
+            <StatCard
+              icon={Fuel}
+              label="BBM Pending Approval"
+              value={financeSummary.pending_fuel_purchases}
+              sub="Pembelian belum disetujui GM"
+              color="bg-amber-500"
+              badge={financeSummary.pending_fuel_purchases > 0 ? financeSummary.pending_fuel_purchases : undefined}
+              onClick={() => navigate("/fuel")}
+            />
+            <StatCard
+              icon={Receipt}
+              label="Pengeluaran Pending"
+              value={financeSummary.pending_expenses}
+              sub="Menunggu approval GM"
+              color="bg-orange-500"
+              badge={financeSummary.pending_expenses > 0 ? financeSummary.pending_expenses : undefined}
+              onClick={() => navigate("/expenses")}
+            />
+          </div>
+
+          {/* Pending Fuel Purchases List */}
+          {(isGM || role === 'finance') && (
+            <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden mt-4">
+              <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 border-b border-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span className="text-sm font-semibold text-amber-800">
+                  {financeSummary.pending_fuel_purchases} Pembelian BBM Menunggu Approval GM
+                </span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {financeSummary.recent_pending_fuel?.length > 0 ? (
+                  financeSummary.recent_pending_fuel.map((rec) => (
+                    <div key={rec.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {rec.liters.toLocaleString('id-ID')} Liter Solar
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Total: {formatIDR(rec.total_price)} | Harga/L: {formatIDR(rec.total_price / rec.liters)}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Tgl: {formatDate(rec.effective_date)} {rec.notes ? `• ${rec.notes}` : ''}
+                        </p>
+                      </div>
+                      {isGM && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setFuelActionModal({ isOpen: true, id: rec.id, action: 'approved' })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => setFuelActionModal({ isOpen: true, id: rec.id, action: 'rejected' })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Tolak
+                        </button>
+                      </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-6 text-center text-gray-500 text-sm">
+                    Tidak ada pembelian BBM yang menunggu persetujuan.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Core Stats ────────────────────────────────────────────────────── */}
+      {role !== 'finance' && (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={Truck}
@@ -446,6 +571,7 @@ export default function DashboardPage() {
           onClick={() => navigate("/fuel")}
         />
       </div>
+      )}
 
       {/* ── Payroll Overview (role-gated) ─────────────────────────────────── */}
       {canSeePayroll && (
@@ -1056,6 +1182,17 @@ export default function DashboardPage() {
         title="Hapus Absensi Hari Ini"
         message="Apakah Anda yakin ingin membatalkan/menghapus absensi pekerja lapangan ini? Tindakan ini tidak dapat dibatalkan."
         confirmText="Hapus"
+      />
+
+      <AlertModal
+        isOpen={fuelActionModal.isOpen}
+        onClose={() => setFuelActionModal({ isOpen: false, id: null, action: null })}
+        onConfirm={handleFuelAction}
+        title={fuelActionModal.action === 'approved' ? "Approve Pembelian BBM" : "Tolak Pembelian BBM"}
+        message={fuelActionModal.action === 'approved' ? "Anda yakin ingin menyetujui pembelian BBM ini? Data pembelian akan dimasukkan ke stok BBM." : "Anda yakin ingin menolak pembelian BBM ini? Data akan masuk ke riwayat sebagai ditolak."}
+        confirmText={fuelActionModal.action === 'approved' ? "Approve" : "Tolak"}
+        cancelText="Batal"
+        confirmColor={fuelActionModal.action === 'approved' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
       />
     </div>
   );

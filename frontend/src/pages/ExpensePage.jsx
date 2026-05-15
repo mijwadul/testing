@@ -482,6 +482,22 @@ const ExpensePage = () => {
     }
   };
 
+  const handlePay = async (exp) => {
+    if (!confirm('Tandai pengeluaran ini sebagai telah dibayar?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/expenses/${exp.id}/pay`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Gagal memproses pembayaran');
+      toast.success('Pengeluaran ditandai sebagai LUNAS.');
+      fetchExpenses();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -634,6 +650,7 @@ const ExpensePage = () => {
                   </span>
                 </th>
                 <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-center">Pembayaran</th>
                 <th className="px-4 py-3 text-left">Deskripsi</th>
                 <th
                   className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100 select-none"
@@ -692,6 +709,17 @@ const ExpensePage = () => {
                         </span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {exp.payment_status === "paid" ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          Lunas
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                          Unpaid
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-700">
                       <p className="max-w-xs truncate" title={exp.description}>
                         {exp.description}
@@ -714,6 +742,15 @@ const ExpensePage = () => {
                             className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                           >
                             <CheckCircle size={15} />
+                          </button>
+                        )}
+                        {(currentUser?.role === 'finance' || canDelete) && exp.approval_status === "approved" && exp.payment_status === "unpaid" && (
+                          <button
+                            onClick={() => handlePay(exp)}
+                            title="Tandai Dibayar"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <DollarSign size={15} />
                           </button>
                         )}
                         <button

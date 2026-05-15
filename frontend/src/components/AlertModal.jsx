@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AlertModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Ya', cancelText = 'Batal' }) => {
+const AlertModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Ya', cancelText = 'Batal', confirmColor = 'bg-red-600 hover:bg-red-700' }) => {
   if (!isOpen) return null;
 
   return (
@@ -11,13 +11,13 @@ const AlertModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = 
         <div className="flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            className={`px-4 py-2 text-white rounded transition-colors ${confirmColor}`}
           >
             {confirmText}
           </button>

@@ -20,6 +20,11 @@ class Expense(Base):
     approval_status = Column(String(20), nullable=False, default="pending") # "pending", "approved"
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
+    
+    payment_status = Column(String(20), nullable=False, default="unpaid") # "unpaid", "paid"
+    paid_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

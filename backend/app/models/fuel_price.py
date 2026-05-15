@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, DateTime, String
+from sqlalchemy import Column, Integer, Float, DateTime, String, Text, ForeignKey
 from sqlalchemy.sql import func
 from .base import Base
 
@@ -9,5 +9,14 @@ class FuelPrice(Base):
     price_per_liter = Column(Float, nullable=False)  # Harga per liter
     fuel_type = Column(String, nullable=False)  # Jenis BBM (solar, premium, dll)
     effective_date = Column(DateTime(timezone=True), nullable=False)  # Tanggal berlaku
+    
+    # New fields for Fuel Purchase & Stock
+    liters = Column(Float, nullable=True) # Jumlah liter yang dibeli
+    total_price = Column(Float, nullable=True) # Total harga pembelian
+    approval_status = Column(String(20), nullable=False, default="pending") # "pending", "approved", "rejected"
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(Text, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())  # Waktu pencatatan
-    created_by = Column(Integer, nullable=True)  # User yang mencatat
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # User yang mencatat

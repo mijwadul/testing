@@ -24,6 +24,7 @@ class ExpenseUpdate(BaseModel):
     amount: Optional[float] = None
     project_id: Optional[int] = None
     notes: Optional[str] = None
+    payment_status: Optional[str] = None
 
 
 class ExpenseResponse(ExpenseBase):
@@ -34,5 +35,8 @@ class ExpenseResponse(ExpenseBase):
     approval_status: str
     approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None
+    payment_status: str
+    paid_by: Optional[int] = None
+    paid_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

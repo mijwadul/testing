@@ -163,10 +163,10 @@ def get_daily_report(
     )
     payroll_total = sum(float(r.net_salary or 0) for r in payroll_records)
 
-    # 2. BBM — ambil harga BBM efektif pada tanggal itu (paling baru sebelum/pada tanggal itu)
+    # 2. BBM — ambil harga BBM efektif pada tanggal itu (paling baru sebelum/pada tanggal itu) yang sudah diapprove
     fuel_price_obj = (
         db.query(FuelPrice)
-        .filter(func.date(FuelPrice.effective_date) <= report_date)
+        .filter(func.date(FuelPrice.effective_date) <= report_date, FuelPrice.approval_status == 'approved')
         .order_by(FuelPrice.effective_date.desc())
         .first()
     )
@@ -334,7 +334,7 @@ def get_daily_report_history(
         # Fuel cost
         fuel_price_obj = (
             db.query(FuelPrice)
-            .filter(func.date(FuelPrice.effective_date) <= d)
+            .filter(func.date(FuelPrice.effective_date) <= d, FuelPrice.approval_status == 'approved')
             .order_by(FuelPrice.effective_date.desc())
             .first()
         )
@@ -349,7 +349,7 @@ def get_daily_report_history(
         # Other expenses
         other = (
             db.query(func.coalesce(func.sum(Expense.amount), 0))
-            .filter(Expense.expense_date == d)
+            .filter(Expense.expense_date == d, Expense.approval_status == "approved")
             .scalar()
         )
 
@@ -377,3 +377,54 @@ def get_daily_report_history(
         )
 
     return result
+
+@router.get("/finance-summary")
+def get_finance_summary(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Ringkasan khusus untuk dashboard Finance"""
+    from ...models.expense import Expense
+    from ...models.fuel_price import FuelPrice
+    
+    # 1. Tagihan Unpaid (Expense yang sudah diapprove tapi belum dibayar)
+    unpaid_expenses = db.query(func.coalesce(func.sum(Expense.amount), 0)).filter(
+        Expense.approval_status == "approved",
+        Expense.payment_status == "unpaid"
+    ).scalar()
+    
+    unpaid_expenses_count = db.query(Expense).filter(
+        Expense.approval_status == "approved",
+        Expense.payment_status == "unpaid"
+    ).count()
+
+    # 2. Pembelian BBM yang belum diapprove
+    pending_fuel_q = db.query(FuelPrice).filter(
+        FuelPrice.approval_status == "pending"
+    )
+    pending_fuel_purchases = pending_fuel_q.count()
+    recent_pending_fuel_list = pending_fuel_q.order_by(FuelPrice.effective_date.desc()).limit(10).all()
+    
+    recent_pending_fuel = [
+        {
+            "id": f.id,
+            "effective_date": str(f.effective_date),
+            "liters": float(f.liters) if f.liters else 0,
+            "total_price": float(f.total_price) if f.total_price else 0,
+            "notes": f.notes
+        }
+        for f in recent_pending_fuel_list
+    ]
+
+    # 3. Pengeluaran yang belum diapprove (Expense)
+    pending_expenses = db.query(Expense).filter(
+        Expense.approval_status == "pending"
+    ).count()
+    
+    return {
+        "unpaid_bills_amount": float(unpaid_expenses or 0),
+        "unpaid_bills_count": unpaid_expenses_count,
+        "pending_fuel_purchases": pending_fuel_purchases,
+        "pending_expenses": pending_expenses,
+        "recent_pending_fuel": recent_pending_fuel
+    }

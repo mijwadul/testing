@@ -175,15 +175,9 @@ const Sidebar = ({ children }) => {
     if (isFinance) {
       const financeSubmenu = [
         {
-          path: "/finance",
-          icon: DollarSign,
-          label: "Finance Dashboard",
-          show: true,
-        },
-        {
           path: "/finance/fuel-price",
           icon: Fuel,
-          label: "Manajemen Harga BBM",
+          label: "Pembelian BBM",
           show: true,
         },
         {

@@ -34,6 +34,9 @@ def _build_expense_response(expense: Expense, db: Session) -> ExpenseResponse:
         approval_status=expense.approval_status,
         approved_by=expense.approved_by,
         approved_at=expense.approved_at,
+        payment_status=expense.payment_status,
+        paid_by=expense.paid_by,
+        paid_at=expense.paid_at,
     )
 
 
@@ -186,6 +189,45 @@ def approve_expense(
         expense.approval_status = "approved"
         expense.approved_by = current_user.id
         expense.approved_at = datetime.now()
+        db.commit()
+        db.refresh(expense)
+
+    return _build_expense_response(expense, db)
+
+
+@router.put("/{expense_id}/pay", response_model=ExpenseResponse)
+def pay_expense(
+    expense_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Tandai pengeluaran sebagai telah dibayar (Finance atau GM/Admin)."""
+    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    is_authorized = (
+        getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_superuser", False)
+        or getattr(current_user, "role", "") in ("admin", "gm", "finance")
+    )
+    if not is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access required to mark expenses as paid",
+        )
+
+    if expense.approval_status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot pay an unapproved expense",
+        )
+
+    if expense.payment_status != "paid":
+        from datetime import datetime
+        expense.payment_status = "paid"
+        expense.paid_by = current_user.id
+        expense.paid_at = datetime.now()
         db.commit()
         db.refresh(expense)
 

@@ -36,6 +36,16 @@ def create_fuel_log(
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
 
+    # Hitung stok BBM
+    total_approved_stock = db.query(func.coalesce(func.sum(FuelPrice.liters), 0)).filter(
+        FuelPrice.approval_status == 'approved'
+    ).scalar()
+    total_consumed = db.query(func.coalesce(func.sum(FuelLog.liters_filled), 0)).scalar()
+    current_stock = float(total_approved_stock or 0) - float(total_consumed or 0)
+    
+    if current_stock < fuel_data.liters_filled:
+        raise HTTPException(status_code=400, detail=f"Stok BBM tidak mencukupi. Sisa stok: {current_stock} Liter")
+
     fuel_log = FuelLog(
         equipment_id=fuel_data.equipment_id,
         hour_meter=fuel_data.hour_meter,
@@ -388,15 +398,19 @@ def create_fuel_price(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Tambah harga BBM baru"""
-    # Check if user is admin or has permission
-    if not current_user.is_admin and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Not authorized to create fuel prices")
+    """Tambah pembelian BBM baru"""
+    # Check if user has permission
+    if not current_user.is_admin and not current_user.is_superuser and current_user.role not in ['gm', 'finance', 'admin']:
+        raise HTTPException(status_code=403, detail="Not authorized to create fuel purchases")
     
     fuel_price = FuelPrice(
         price_per_liter=price_data.price_per_liter,
         fuel_type=price_data.fuel_type,
         effective_date=price_data.effective_date,
+        liters=price_data.liters,
+        total_price=price_data.total_price,
+        notes=price_data.notes,
+        approval_status="pending",
         created_by=current_user.id if current_user else None
     )
     
@@ -404,3 +418,101 @@ def create_fuel_price(
     db.commit()
     db.refresh(fuel_price)
     return fuel_price
+
+
+@router.put("/price/{price_id}/approve", response_model=FuelPriceSchema)
+def approve_fuel_purchase(
+    price_id: int,
+    status: str = "approved",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Approve atau reject pembelian BBM (GM only)"""
+    if not current_user.is_admin and not current_user.is_superuser and current_user.role not in ['gm', 'admin']:
+        raise HTTPException(status_code=403, detail="Hanya GM yang dapat melakukan approval")
+        
+    purchase = db.query(FuelPrice).filter(FuelPrice.id == price_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Data pembelian BBM tidak ditemukan")
+        
+    purchase.approval_status = status
+    purchase.approved_by = current_user.id
+    purchase.approved_at = datetime.now()
+    
+    db.commit()
+    db.refresh(purchase)
+    return purchase
+
+
+@router.put("/price/{price_id}", response_model=FuelPriceSchema)
+def update_fuel_purchase(
+    price_id: int,
+    data: FuelPriceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update pembelian BBM"""
+    purchase = db.query(FuelPrice).filter(FuelPrice.id == price_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Data pembelian BBM tidak ditemukan")
+
+    # Only GM or the creator (if pending) can update
+    is_gm = current_user.is_admin or current_user.is_superuser or current_user.role in ['gm', 'admin']
+    if not is_gm and purchase.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this purchase")
+        
+    if purchase.approval_status != "pending" and not is_gm:
+        raise HTTPException(status_code=400, detail="Cannot update an approved/rejected purchase")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(purchase, field, value)
+
+    # If updated by Finance, reset approval status
+    if not is_gm and "approval_status" not in update_data:
+        purchase.approval_status = "pending"
+
+    db.commit()
+    db.refresh(purchase)
+    return purchase
+
+
+@router.delete("/price/{price_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_fuel_purchase(
+    price_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Hapus data pembelian BBM"""
+    purchase = db.query(FuelPrice).filter(FuelPrice.id == price_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Data pembelian BBM tidak ditemukan")
+
+    is_gm = current_user.is_admin or current_user.is_superuser or current_user.role in ['gm', 'admin']
+    if not is_gm and purchase.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this purchase")
+        
+    if purchase.approval_status != "pending" and not is_gm:
+        raise HTTPException(status_code=400, detail="Cannot delete an approved/rejected purchase")
+
+    db.delete(purchase)
+    db.commit()
+    return None
+
+
+@router.get("/stock", response_model=dict)
+def get_fuel_stock(db: Session = Depends(get_db)):
+    """Menghitung total stok BBM tersedia berdasarkan pembelian yang disetujui dikurangi penggunaan"""
+    total_approved_stock = db.query(func.coalesce(func.sum(FuelPrice.liters), 0)).filter(
+        FuelPrice.approval_status == 'approved'
+    ).scalar()
+    
+    total_consumed = db.query(func.coalesce(func.sum(FuelLog.liters_filled), 0)).scalar()
+    
+    current_stock = float(total_approved_stock or 0) - float(total_consumed or 0)
+    
+    return {
+        "total_purchased": float(total_approved_stock or 0),
+        "total_consumed": float(total_consumed or 0),
+        "current_stock": current_stock
+    }
