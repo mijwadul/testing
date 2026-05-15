@@ -69,7 +69,7 @@ const WorkLogsPage = () => {
   const fetchOperators = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/employees`, {
+      const response = await fetch(`${API_URL}/employees/employees`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -103,7 +103,7 @@ const WorkLogsPage = () => {
   const fetchProjects = async () => {
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/projects`, {
+      const response = await fetch(`${API_URL}/dashboard/projects`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {

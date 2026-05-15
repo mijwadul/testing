@@ -74,6 +74,7 @@ def calculate_payroll(
     overtime_hours: float = 0,
     bonus: float = 0,
     allowance: float = 0,
+    loan_deduction: Optional[float] = None,
     other_deduction: float = 0,
     db: Session = None,
 ) -> PayrollCalculationResult:
@@ -116,18 +117,28 @@ def calculate_payroll(
     total_income = basic_salary + overtime_amount + bonus + allowance
 
     # Calculate deductions
-    loan_deduction = min(
-        employee.loan_deduction_per_period or 0, employee.loan_balance or 0
-    )
+    if loan_deduction is not None:
+        actual_loan_deduction = min(loan_deduction, employee.loan_balance or 0)
+    else:
+        total_deduction_setting = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
+            EmployeeLoan.employee_id == employee.id,
+            EmployeeLoan.is_active == True
+        ).scalar() or 0
+        total_balance = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
+            EmployeeLoan.employee_id == employee.id,
+            EmployeeLoan.is_active == True
+        ).scalar() or 0
+        actual_loan_deduction = min(total_deduction_setting, total_balance)
+
     debt_deduction = min(employee.debt_to_company or 0, employee.debt_to_company or 0)
 
-    total_deduction = loan_deduction + debt_deduction + other_deduction
+    total_deduction = actual_loan_deduction + debt_deduction + other_deduction
 
     # Calculate net salary
     net_salary = total_income - total_deduction
 
     # Calculate remaining balances
-    loan_remaining = max(0, (employee.loan_balance or 0) - loan_deduction)
+    loan_remaining = max(0, (employee.loan_balance or 0) - actual_loan_deduction)
     debt_remaining = max(0, (employee.debt_to_company or 0) - debt_deduction)
 
     return PayrollCalculationResult(
@@ -143,7 +154,7 @@ def calculate_payroll(
         bonus=bonus,
         allowance=allowance,
         total_income=total_income,
-        loan_deduction=loan_deduction,
+        loan_deduction=actual_loan_deduction,
         debt_deduction=debt_deduction,
         other_deduction=other_deduction,
         total_deduction=total_deduction,
@@ -187,6 +198,21 @@ def get_employees(
 
     employees = query.offset(skip).limit(limit).all()
 
+    # Pre-fetch loan stats to avoid N+1 and ensure accuracy
+    employee_ids = [emp.id for emp in employees]
+    loan_map = {}
+    if check_finance_access(current_user) and employee_ids:
+        loan_stats = db.query(
+            EmployeeLoan.employee_id,
+            func.sum(EmployeeLoan.remaining_balance).label("total_balance"),
+            func.sum(EmployeeLoan.deduction_per_period).label("total_deduction")
+        ).filter(
+            EmployeeLoan.employee_id.in_(employee_ids),
+            EmployeeLoan.is_active == True
+        ).group_by(EmployeeLoan.employee_id).all()
+        for stat in loan_stats:
+            loan_map[stat.employee_id] = stat
+
     result = []
     for emp in employees:
         emp_data = {
@@ -203,6 +229,13 @@ def get_employees(
         # Only Finance/GM can see salary info
         if check_finance_access(current_user):
             emp_data["daily_salary"] = emp.daily_salary
+            stat = loan_map.get(emp.id)
+            if stat:
+                emp_data["loan_balance"] = stat.total_balance
+                emp_data["loan_deduction_per_period"] = stat.total_deduction
+            else:
+                emp_data["loan_balance"] = 0
+                emp_data["loan_deduction_per_period"] = 0
 
         result.append(EmployeeListResponse(**emp_data))
 
@@ -381,6 +414,7 @@ def calculate_payroll_endpoint(
         overtime_hours=calc_request.overtime_hours or 0,
         bonus=calc_request.bonus or 0,
         allowance=calc_request.allowance or 0,
+        loan_deduction=calc_request.loan_deduction,
         db=db,
     )
 
@@ -416,6 +450,7 @@ def create_payroll(
         overtime_hours=payroll.overtime_hours or 0,
         bonus=payroll.bonus or 0,
         allowance=payroll.allowance or 0,
+        loan_deduction=payroll.loan_deduction,
         other_deduction=payroll.other_deduction or 0,
         db=db,
     )
@@ -799,12 +834,17 @@ def create_loan(
     db.add(db_loan)
     db.commit()
 
-    # Recalculate employee loan_balance
+    # Recalculate employee loan_balance and deduction
     total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
         EmployeeLoan.employee_id == employee.id,
         EmployeeLoan.is_active == True
     ).scalar() or 0
+    total_deduction = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
+        EmployeeLoan.employee_id == employee.id,
+        EmployeeLoan.is_active == True
+    ).scalar() or 0
     employee.loan_balance = total_loan
+    employee.loan_deduction_per_period = total_deduction
     db.commit()
 
     db.refresh(db_loan)
@@ -907,14 +947,19 @@ def update_loan(
 
     db.commit()
     
-    # Recalculate employee loan_balance
+    # Recalculate employee loan_balance and deduction
     employee = db.query(Employee).filter(Employee.id == loan.employee_id).first()
     if employee:
         total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
             EmployeeLoan.employee_id == employee.id,
             EmployeeLoan.is_active == True
         ).scalar() or 0
+        total_deduction = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
+            EmployeeLoan.employee_id == employee.id,
+            EmployeeLoan.is_active == True
+        ).scalar() or 0
         employee.loan_balance = total_loan
+        employee.loan_deduction_per_period = total_deduction
         db.commit()
 
     db.refresh(loan)
@@ -952,7 +997,12 @@ def delete_loan(
             EmployeeLoan.employee_id == employee.id,
             EmployeeLoan.is_active == True
         ).scalar() or 0
+        total_deduction = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
+            EmployeeLoan.employee_id == employee.id,
+            EmployeeLoan.is_active == True
+        ).scalar() or 0
         employee.loan_balance = total_loan
+        employee.loan_deduction_per_period = total_deduction
         db.commit()
 
     return {"message": "Loan deleted successfully"}

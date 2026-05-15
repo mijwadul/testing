@@ -200,6 +200,8 @@ class EmployeeListResponse(BaseModel):
     has_loan: Optional[bool] = False
     has_debt: Optional[bool] = False
     daily_salary: Optional[float] = None  # Hanya untuk Finance/GM
+    loan_balance: Optional[float] = None  # Hanya untuk Finance/GM
+    loan_deduction_per_period: Optional[float] = None  # Hanya untuk Finance/GM
 
 
 # ============================================
@@ -219,6 +221,7 @@ class PayrollBase(BaseModel):
     overtime_hours: Optional[float] = 0
     bonus: Optional[float] = 0
     allowance: Optional[float] = 0
+    loan_deduction: Optional[float] = None
     other_deduction: Optional[float] = 0
     deduction_note: Optional[str] = None
     notes: Optional[str] = None
@@ -233,6 +236,7 @@ class PayrollCalculate(BaseModel):
     overtime_hours: Optional[float] = 0
     bonus: Optional[float] = 0
     allowance: Optional[float] = 0
+    loan_deduction: Optional[float] = None
 
 
 class PayrollCalculationResult(BaseModel):

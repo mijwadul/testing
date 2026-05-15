@@ -102,6 +102,7 @@ const EmployeesPage = () => {
     overtime_hours: '',
     bonus: '',
     allowance: '',
+    loan_deduction: '',
     other_deduction: '',
     deduction_note: '',
     notes: ''
@@ -134,6 +135,10 @@ const EmployeesPage = () => {
         fetchEmployees();
       } else if (activeTab === TABS.PAYROLL && canAccessFinancial) {
         fetchPayrollRecords();
+        fetchEmployees();
+      } else if (activeTab === TABS.LOANS && canAccessFinancial) {
+        fetchLoans(selectedEmployeeForLoan?.id);
+        fetchEmployees();
       }
     }
   }, [currentUser, activeTab]);
@@ -225,10 +230,13 @@ const EmployeesPage = () => {
     }
   };
 
-  const fetchLoans = async (employeeId) => {
+  const fetchLoans = async (employeeId = null) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/employees/loans/employee/${employeeId}`, {
+      const url = employeeId 
+        ? `/api/v1/employees/loans/employee/${employeeId}`
+        : `/api/v1/employees/loans`;
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -309,16 +317,30 @@ const EmployeesPage = () => {
     }
   };
 
+  const preparePayrollPayload = () => {
+    const payload = { ...payrollForm };
+    const floatFields = ['overtime_hours', 'bonus', 'allowance', 'loan_deduction', 'other_deduction'];
+    floatFields.forEach(field => {
+      if (payload[field] === '') {
+        delete payload[field];
+      } else {
+        payload[field] = parseFloat(payload[field]);
+      }
+    });
+    return payload;
+  };
+
   const handleCalculatePayroll = async () => {
     try {
       const token = localStorage.getItem('token');
+      const payload = preparePayrollPayload();
       const response = await fetch('/api/v1/employees/payroll/calculate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(payrollForm)
+        body: JSON.stringify(payload)
       });
       
       if (response.ok) {
@@ -336,13 +358,14 @@ const EmployeesPage = () => {
   const handleCreatePayroll = async () => {
     try {
       const token = localStorage.getItem('token');
+      const payload = preparePayrollPayload();
       const response = await fetch('/api/v1/employees/payroll', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(payrollForm)
+        body: JSON.stringify(payload)
       });
       
       if (response.ok) {
@@ -540,6 +563,7 @@ const EmployeesPage = () => {
       overtime_hours: '',
       bonus: '',
       allowance: '',
+      loan_deduction: '',
       other_deduction: '',
       deduction_note: '',
       notes: ''
@@ -1073,16 +1097,22 @@ const EmployeesPage = () => {
           <div className="mb-4 flex gap-4">
             <select
               value={selectedEmployeeForLoan?.id || ''}
-              onChange={(e) => {
-                const emp = employees.find(e => e.id === parseInt(e.target.value));
-                if (emp) {
-                  setSelectedEmployeeForLoan(emp);
-                  fetchLoans(emp.id);
+              onChange={(event) => {
+                const value = event.target.value;
+                if (!value) {
+                  setSelectedEmployeeForLoan(null);
+                  fetchLoans();
+                } else {
+                  const emp = employees.find(e => e.id === parseInt(value));
+                  if (emp) {
+                    setSelectedEmployeeForLoan(emp);
+                    fetchLoans(emp.id);
+                  }
                 }
               }}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Pilih Karyawan</option>
+              <option value="">Semua Karyawan</option>
               {employees.map(emp => (
                 <option key={emp.id} value={emp.id}>{emp.name} - {emp.position}</option>
               ))}
@@ -1102,6 +1132,7 @@ const EmployeesPage = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Karyawan</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal Pinjam</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sisa Saldo</th>
@@ -1113,6 +1144,9 @@ const EmployeesPage = () => {
               <tbody className="divide-y divide-gray-200">
                 {loans.map((loan) => (
                   <tr key={loan.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {employees.find(e => e.id === loan.employee_id)?.name || `ID ${loan.employee_id}`}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{loan.loan_date}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">Rp {parseFloat(loan.nominal).toLocaleString('id-ID')}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">Rp {parseFloat(loan.remaining_balance).toLocaleString('id-ID')}</td>
@@ -1461,7 +1495,22 @@ const EmployeesPage = () => {
                   <select
                     required
                     value={payrollForm.employee_id}
-                    onChange={(e) => setPayrollForm({...payrollForm, employee_id: e.target.value})}
+                    onChange={(e) => {
+                      const empId = e.target.value;
+                      const emp = employees.find(employee => employee.id === parseInt(empId));
+                      let defaultDeduction = '';
+                      if (emp && emp.loan_balance > 0) {
+                        const deduction = Math.min(emp.loan_deduction_per_period || 0, emp.loan_balance);
+                        if (deduction > 0) {
+                          defaultDeduction = deduction;
+                        }
+                      }
+                      setPayrollForm({
+                        ...payrollForm, 
+                        employee_id: empId,
+                        loan_deduction: defaultDeduction
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">Pilih Karyawan</option>
@@ -1516,14 +1565,26 @@ const EmployeesPage = () => {
                   </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tunjangan (Rp)</label>
-                  <input
-                    type="number"
-                    value={payrollForm.allowance}
-                    onChange={(e) => setPayrollForm({...payrollForm, allowance: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tunjangan (Rp)</label>
+                    <input
+                      type="number"
+                      value={payrollForm.allowance}
+                      onChange={(e) => setPayrollForm({...payrollForm, allowance: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Potongan Pinjaman (Rp)</label>
+                    <input
+                      type="number"
+                      value={payrollForm.loan_deduction}
+                      onChange={(e) => setPayrollForm({...payrollForm, loan_deduction: e.target.value})}
+                      placeholder="Otomatis jika kosong"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
                 </div>
                 
                 <div>

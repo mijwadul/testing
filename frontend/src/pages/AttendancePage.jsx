@@ -35,6 +35,15 @@ const AttendancePage = () => {
     notes: ''
   });
 
+  const [currentTimeStr, setCurrentTimeStr] = useState('');
+  
+  useEffect(() => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    setCurrentTimeStr(`${hours}:${minutes}`);
+  }, []);
+
   const token = localStorage.getItem('token');
   const isGMOrSuperuser = currentUser?.is_superuser || currentUser?.role === 'gm';
   const isHelper = currentUser?.role === 'helper' && !currentUser?.is_superuser;
@@ -135,12 +144,20 @@ const AttendancePage = () => {
     }
 
     setSubmitting(true);
+    const finalDate = isHelper ? toLocalDateInput(new Date()) : formData.date;
+
+    const combineDateTime = (dateStr, timeStr) => {
+      if (!timeStr) return null;
+      const d = new Date(`${dateStr}T${timeStr}:00`);
+      return d.toISOString();
+    };
+
     const payload = {
       employee_id: Number(formData.employee_id),
-      date: isHelper ? toLocalDateInput(new Date()) : formData.date,
+      date: finalDate,
       status: formData.status,
-      check_in: formData.check_in ? new Date(formData.check_in).toISOString() : null,
-      check_out: formData.check_out ? new Date(formData.check_out).toISOString() : null,
+      check_in: combineDateTime(finalDate, formData.check_in),
+      check_out: combineDateTime(finalDate, formData.check_out),
       notes: formData.notes || null
     };
 
@@ -301,21 +318,55 @@ const AttendancePage = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Jam Check-in</label>
-              <input
-                type="datetime-local"
-                value={formData.check_in}
-                onChange={(e) => setFormData((prev) => ({ ...prev, check_in: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              />
+              {isGMOrSuperuser ? (
+                <input
+                  type="time"
+                  value={formData.check_in}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, check_in: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.check_in !== ''}
+                    onChange={(e) => setFormData(prev => ({...prev, check_in: e.target.checked ? currentTimeStr : ''}))}
+                    className="h-5 w-5 text-blue-600 rounded"
+                  />
+                  <input
+                    type="time"
+                    value={formData.check_in || currentTimeStr}
+                    disabled
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  />
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Jam Check-out</label>
-              <input
-                type="datetime-local"
-                value={formData.check_out}
-                onChange={(e) => setFormData((prev) => ({ ...prev, check_out: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              />
+              {isGMOrSuperuser ? (
+                <input
+                  type="time"
+                  value={formData.check_out}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, check_out: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.check_out !== ''}
+                    onChange={(e) => setFormData(prev => ({...prev, check_out: e.target.checked ? currentTimeStr : ''}))}
+                    className="h-5 w-5 text-blue-600 rounded"
+                  />
+                  <input
+                    type="time"
+                    value={formData.check_out || currentTimeStr}
+                    disabled
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  />
+                </div>
+              )}
             </div>
             <div className="md:col-span-2 lg:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
