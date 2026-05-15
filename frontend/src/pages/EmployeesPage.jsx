@@ -1,4 +1,4 @@
-import { API_URL } from "../../api/auth";
+import { API_URL } from "../api/auth";
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, User, DollarSign, Calendar, CreditCard, AlertCircle, 
          Search, Filter, Download, TrendingUp, Briefcase, MapPin, Phone, Mail, 
