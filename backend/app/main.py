@@ -10,7 +10,9 @@ from .api.v1.auth import router as auth_router
 from .api.v1.dashboard import router as dashboard_router
 from .api.v1.employees import router as employees_router
 from .api.v1.equipment import router as equipment_router
+from .api.v1.expenses import router as expenses_router
 from .api.v1.fuel import router as fuel_router
+from .api.v1.income_records import router as income_records_router
 from .api.v1.work_logs import router as work_logs_router
 from .core.auth import get_password_hash
 from .core.config import settings
@@ -30,6 +32,8 @@ def bootstrap_database():
         _migrate_employees_columns_if_needed()
         _migrate_fuel_prices_columns_if_needed()
         _migrate_work_logs_columns_if_needed()
+        _migrate_expenses_if_needed()
+        _migrate_income_records_if_needed()
 
     default_admin_email = settings.DEFAULT_ADMIN_EMAIL.strip().lower()
     default_admin_password = settings.DEFAULT_ADMIN_PASSWORD
@@ -292,6 +296,68 @@ def _migrate_work_logs_columns_if_needed():
                 )
 
 
+def _migrate_expenses_if_needed():
+    """Create expenses table if it doesn't exist. SQLite only."""
+    if engine.dialect.name != "sqlite":
+        return
+    inspector = inspect(engine)
+    if "expenses" not in set(inspector.get_table_names()):
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                CREATE TABLE expenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    expense_date DATE NOT NULL,
+                    category VARCHAR(50) NOT NULL,
+                    description TEXT NOT NULL,
+                    amount FLOAT NOT NULL,
+                    project_id INTEGER REFERENCES projects(id),
+                    receipt_url VARCHAR,
+                    notes TEXT,
+                    created_by INTEGER REFERENCES users(id),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME
+                )
+            """
+                )
+            )
+
+
+def _migrate_income_records_if_needed():
+    """Create income_records table if it doesn't exist. SQLite only."""
+    if engine.dialect.name != "sqlite":
+        return
+    inspector = inspect(engine)
+    if "income_records" not in set(inspector.get_table_names()):
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                CREATE TABLE income_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    income_date DATE NOT NULL,
+                    income_type VARCHAR(30) NOT NULL,
+                    description TEXT NOT NULL,
+                    amount FLOAT NOT NULL,
+                    project_id INTEGER REFERENCES projects(id),
+                    payment_term VARCHAR(50),
+                    customer_name VARCHAR(200),
+                    material_type VARCHAR(100),
+                    quantity FLOAT,
+                    unit VARCHAR(20),
+                    unit_price FLOAT,
+                    payment_method VARCHAR(20),
+                    notes TEXT,
+                    created_by INTEGER REFERENCES users(id),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME
+                )
+            """
+                )
+            )
+
+
 # Exception handler — traceback hanya ditampilkan saat DEBUG=True
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -313,6 +379,10 @@ app.include_router(equipment_router, prefix="/api/v1/equipment", tags=["equipmen
 app.include_router(fuel_router, prefix="/api/v1/fuel", tags=["fuel"])
 app.include_router(work_logs_router, prefix="/api/v1/work-logs", tags=["work-logs"])
 app.include_router(employees_router, prefix="/api/v1/employees", tags=["employees"])
+app.include_router(expenses_router, prefix="/api/v1/expenses", tags=["expenses"])
+app.include_router(
+    income_records_router, prefix="/api/v1/income-records", tags=["income-records"]
+)
 
 
 @app.get("/")

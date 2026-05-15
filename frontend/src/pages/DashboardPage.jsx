@@ -1,27 +1,54 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  PieChart, Pie, Cell, ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
 } from "recharts";
 import {
-  Truck, Users, FolderOpen, Fuel, Gauge,
-  FileText, Clock, CheckCircle, DollarSign,
-  AlertTriangle, ChevronRight, RefreshCw, Loader2,
-  TrendingUp, Wallet,
+  Truck,
+  Users,
+  FolderOpen,
+  Fuel,
+  Gauge,
+  FileText,
+  Clock,
+  CheckCircle,
+  DollarSign,
+  AlertTriangle,
+  ChevronRight,
+  RefreshCw,
+  Loader2,
+  TrendingUp,
+  Wallet,
+  TrendingDown,
+  BarChart2,
+  PlusCircle,
 } from "lucide-react";
 import { API_URL } from "../api/auth";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatIDR = (v) =>
   Number(v ?? 0).toLocaleString("id-ID", {
-    style: "currency", currency: "IDR", minimumFractionDigits: 0,
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
   });
 
 const formatDate = (d) => {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("id-ID", {
-    day: "2-digit", month: "short", year: "numeric",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 };
 
@@ -29,7 +56,7 @@ const formatDate = (d) => {
 const StatCard = ({ icon: Icon, label, value, sub, color, onClick, badge }) => (
   <div
     onClick={onClick}
-    className={`bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start gap-4 
+    className={`bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start gap-4
       ${onClick ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all" : ""}`}
   >
     <div className={`p-3 rounded-xl ${color}`}>
@@ -53,40 +80,56 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   // ── state ──
-  const [currentUser, setCurrentUser]           = useState(null);
-  const [stats, setStats]                       = useState({ equipment_count: 0, employee_count: 0, project_count: 0 });
-  const [payrollSummary, setPayrollSummary]     = useState(null);
-  const [fuelStats, setFuelStats]               = useState({ total_fuel_consumed: 0, equipment_count: 0 });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [stats, setStats] = useState({
+    equipment_count: 0,
+    employee_count: 0,
+    project_count: 0,
+  });
+  const [payrollSummary, setPayrollSummary] = useState(null);
+  const [fuelStats, setFuelStats] = useState({
+    total_fuel_consumed: 0,
+    equipment_count: 0,
+  });
   const [fuelEquipmentReport, setFuelEquipmentReport] = useState([]);
-  const [equipment, setEquipment]               = useState([]);
-  const [employees, setEmployees]               = useState([]);
-  const [projects, setProjects]                 = useState([]);
-  const [loadingPayroll, setLoadingPayroll]     = useState(true);
-  const [approvingId, setApprovingId]           = useState(null);
+  const [equipment, setEquipment] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loadingPayroll, setLoadingPayroll] = useState(true);
+  const [approvingId, setApprovingId] = useState(null);
+  const [dailyReport, setDailyReport] = useState(null);
+  const [loadingDaily, setLoadingDaily] = useState(false);
 
   const getToken = () => localStorage.getItem("token");
 
-  const authFetch = useCallback(async (url) => {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    });
-    if (res.status === 401) { localStorage.removeItem("token"); navigate("/login"); }
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  }, [navigate]);
+  const authFetch = useCallback(
+    async (url) => {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+      }
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    [navigate],
+  );
 
   // ── fetch current user ──
   useEffect(() => {
     authFetch(`${API_URL}/auth/me`)
-      .then(data => setCurrentUser(data.user ?? data))
+      .then((data) => setCurrentUser(data.user ?? data))
       .catch(() => {});
   }, [authFetch]);
 
   // ── fetch all dashboard data ──
   const fetchAll = useCallback(async () => {
     setLoadingPayroll(true);
+    setLoadingDaily(true);
     try {
-      const [s, pe, fe, fr, eq, emp, proj] = await Promise.allSettled([
+      const [s, pe, fe, fr, eq, emp, proj, dr] = await Promise.allSettled([
         authFetch(`${API_URL}/dashboard/stats`),
         authFetch(`${API_URL}/dashboard/payroll-summary`),
         authFetch(`${API_URL}/fuel/efficiency?days=30`),
@@ -94,26 +137,37 @@ export default function DashboardPage() {
         authFetch(`${API_URL}/dashboard/equipment`),
         authFetch(`${API_URL}/dashboard/employees`),
         authFetch(`${API_URL}/dashboard/projects`),
+        authFetch(`${API_URL}/dashboard/daily-report`),
       ]);
-      if (s.status  === "fulfilled") setStats(s.value);
+      if (s.status === "fulfilled") setStats(s.value);
       if (pe.status === "fulfilled") setPayrollSummary(pe.value);
       if (fe.status === "fulfilled") setFuelStats(fe.value);
       if (fr.status === "fulfilled") setFuelEquipmentReport(fr.value);
       if (eq.status === "fulfilled") setEquipment(eq.value);
-      if (emp.status=== "fulfilled") setEmployees(emp.value);
-      if (proj.status==="fulfilled") setProjects(proj.value);
+      if (emp.status === "fulfilled") setEmployees(emp.value);
+      if (proj.status === "fulfilled") setProjects(proj.value);
+      if (dr.status === "fulfilled") setDailyReport(dr.value);
     } finally {
       setLoadingPayroll(false);
+      setLoadingDaily(false);
     }
   }, [authFetch]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   // ── role ──
-  const role   = currentUser?.role ?? "";
-  const isGM   = role === "gm" || role === "direktur" || currentUser?.is_admin || currentUser?.is_superuser;
-  const canSeePayroll = ["gm", "finance", "admin", "checker", "direktur"].includes(role)
-    || currentUser?.is_admin || currentUser?.is_superuser;
+  const role = currentUser?.role ?? "";
+  const isGM =
+    role === "gm" ||
+    role === "direktur" ||
+    currentUser?.is_admin ||
+    currentUser?.is_superuser;
+  const canSeePayroll =
+    ["gm", "finance", "admin", "checker", "direktur"].includes(role) ||
+    currentUser?.is_admin ||
+    currentUser?.is_superuser;
 
   // ── approve payroll ──
   const handleApprove = async (payrollId) => {
@@ -133,28 +187,34 @@ export default function DashboardPage() {
   };
 
   // ── chart data ──
-  const fuelChartData = useMemo(() =>
-    fuelEquipmentReport
-      .slice()
-      .sort((a, b) => b.total_liters - a.total_liters)
-      .slice(0, 14)
-      .map(r => ({
-        name: r.equipment_name.length > 14 ? `${r.equipment_name.slice(0, 13)}…` : r.equipment_name,
-        liters: r.total_liters,
-        fullName: r.equipment_name,
-      })),
-  [fuelEquipmentReport]);
+  const fuelChartData = useMemo(
+    () =>
+      fuelEquipmentReport
+        .slice()
+        .sort((a, b) => b.total_liters - a.total_liters)
+        .slice(0, 14)
+        .map((r) => ({
+          name:
+            r.equipment_name.length > 14
+              ? `${r.equipment_name.slice(0, 13)}…`
+              : r.equipment_name,
+          liters: r.total_liters,
+          fullName: r.equipment_name,
+        })),
+    [fuelEquipmentReport],
+  );
 
   const projectData = useMemo(() => {
     const counts = { ongoing: 0, completed: 0, paused: 0 };
-    projects.forEach(p => {
+    projects.forEach((p) => {
       const s = (p.status || "ongoing").toLowerCase();
-      if (s in counts) counts[s]++; else counts.ongoing++;
+      if (s in counts) counts[s]++;
+      else counts.ongoing++;
     });
     return [
-      { name: "Ongoing",   value: counts.ongoing,   color: "#3b82f6" },
+      { name: "Ongoing", value: counts.ongoing, color: "#3b82f6" },
       { name: "Completed", value: counts.completed, color: "#10b981" },
-      { name: "Paused",    value: counts.paused,    color: "#f59e0b" },
+      { name: "Paused", value: counts.paused, color: "#f59e0b" },
     ];
   }, [projects]);
 
@@ -165,10 +225,10 @@ export default function DashboardPage() {
       {/* ── Page Header ───────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
-            Dashboard
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">PT. Kusuma Samudera Berkah – Ringkasan Operasional</p>
+          <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            PT. Kusuma Samudera Berkah – Ringkasan Operasional
+          </p>
         </div>
         <button
           onClick={fetchAll}
@@ -182,24 +242,28 @@ export default function DashboardPage() {
       {/* ── Core Stats ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={Truck}  label="Total Equipment"
+          icon={Truck}
+          label="Total Equipment"
           value={stats.equipment_count}
           color="bg-blue-500"
           onClick={() => navigate("/equipment")}
         />
         <StatCard
-          icon={Users}  label="Karyawan Aktif"
+          icon={Users}
+          label="Karyawan Aktif"
           value={stats.employee_count}
           color="bg-emerald-500"
           onClick={() => navigate("/employees")}
         />
         <StatCard
-          icon={FolderOpen} label="Total Proyek"
+          icon={FolderOpen}
+          label="Total Proyek"
           value={stats.project_count}
           color="bg-purple-500"
         />
         <StatCard
-          icon={Gauge} label="BBM 30 Hari"
+          icon={Gauge}
+          label="BBM 30 Hari"
           value={`${fuelStats.total_fuel_consumed.toFixed(1)} L`}
           sub={`${fuelStats.equipment_count} unit`}
           color="bg-amber-500"
@@ -268,12 +332,18 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <div className="divide-y divide-gray-100">
-                    {ps.recent_pending.map(rec => (
-                      <div key={rec.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+                    {ps.recent_pending.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
+                      >
                         <div>
-                          <p className="text-sm font-medium text-gray-800">{rec.employee_name}</p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {rec.employee_name}
+                          </p>
                           <p className="text-xs text-gray-400">
-                            {formatDate(rec.period_start)} – {formatDate(rec.period_end)}
+                            {formatDate(rec.period_start)} –{" "}
+                            {formatDate(rec.period_end)}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
@@ -285,10 +355,11 @@ export default function DashboardPage() {
                             disabled={approvingId === rec.id}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-60"
                           >
-                            {approvingId === rec.id
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <CheckCircle className="w-3.5 h-3.5" />
-                            }
+                            {approvingId === rec.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-3.5 h-3.5" />
+                            )}
                             Approve
                           </button>
                         </div>
@@ -301,7 +372,8 @@ export default function DashboardPage() {
                         onClick={() => navigate("/payroll")}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        + {ps.pending_count - 5} lainnya → Lihat semua di Payroll
+                        + {ps.pending_count - 5} lainnya → Lihat semua di
+                        Payroll
                       </button>
                     </div>
                   )}
@@ -322,6 +394,197 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Laporan Keuangan Hari Ini (GM Only) ──────────────────────────── */}
+      {isGM &&
+        (() => {
+          const totalIncome = dailyReport?.summary?.total_income ?? 0;
+          const totalExpense = dailyReport?.summary?.total_expense ?? 0;
+          const net = dailyReport?.summary?.net ?? totalIncome - totalExpense;
+          const payrollTotal = dailyReport?.expenses?.payroll?.total ?? 0;
+          const fuelTotal = dailyReport?.expenses?.fuel?.total ?? 0;
+          const othersTotal = dailyReport?.expenses?.others?.total ?? 0;
+          const hasData = totalIncome > 0 || totalExpense > 0;
+
+          const pct = (val) =>
+            totalExpense > 0
+              ? Math.min(100, (val / totalExpense) * 100).toFixed(1)
+              : 0;
+
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-emerald-600" />
+                  Laporan Keuangan Hari Ini
+                </h2>
+                <button
+                  onClick={() => navigate("/daily-report")}
+                  className="text-sm text-emerald-600 hover:text-emerald-800 flex items-center gap-1 font-medium"
+                >
+                  Laporan Lengkap <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {loadingDaily ? (
+                <div className="flex items-center gap-2 text-gray-400 py-4">
+                  <Loader2 className="w-5 h-5 animate-spin" /> Memuat laporan
+                  harian…
+                </div>
+              ) : !hasData ? (
+                <div className="bg-gray-50 rounded-2xl border border-dashed border-gray-200 p-8 text-center">
+                  <BarChart2 className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm text-gray-500 font-medium mb-4">
+                    Belum ada transaksi hari ini
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => navigate("/expenses")}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" /> Input Pengeluaran
+                    </button>
+                    <button
+                      onClick={() => navigate("/income")}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" /> Input Pemasukan
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* 3 Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <StatCard
+                      icon={TrendingUp}
+                      label="Pemasukan Hari Ini"
+                      value={formatIDR(totalIncome)}
+                      color="bg-emerald-500"
+                      onClick={() => navigate("/income")}
+                    />
+                    <StatCard
+                      icon={TrendingDown}
+                      label="Pengeluaran Hari Ini"
+                      value={formatIDR(totalExpense)}
+                      color="bg-red-500"
+                      onClick={() => navigate("/expenses")}
+                    />
+                    <StatCard
+                      icon={net >= 0 ? TrendingUp : TrendingDown}
+                      label="Net Balance"
+                      value={formatIDR(Math.abs(net))}
+                      sub={net >= 0 ? "Surplus" : "Defisit"}
+                      color={net >= 0 ? "bg-blue-600" : "bg-orange-500"}
+                    />
+                  </div>
+
+                  {/* Breakdown pengeluaran */}
+                  {totalExpense > 0 && (
+                    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                        Rincian Pengeluaran Hari Ini
+                      </h3>
+                      <div className="space-y-3">
+                        {/* Payroll */}
+                        {payrollTotal > 0 && (
+                          <div>
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span className="font-medium">Gaji Karyawan</span>
+                              <span className="tabular-nums">
+                                {formatIDR(payrollTotal)} ({pct(payrollTotal)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2">
+                              <div
+                                className="bg-blue-500 h-2 rounded-full transition-all"
+                                style={{ width: `${pct(payrollTotal)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {/* BBM */}
+                        {fuelTotal > 0 && (
+                          <div>
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span className="font-medium">BBM</span>
+                              <span className="tabular-nums">
+                                {formatIDR(fuelTotal)} ({pct(fuelTotal)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2">
+                              <div
+                                className="bg-amber-400 h-2 rounded-full transition-all"
+                                style={{ width: `${pct(fuelTotal)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {/* Lain-lain */}
+                        {othersTotal > 0 && (
+                          <div>
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span className="font-medium">
+                                Koordinasi & Lain-lain
+                              </span>
+                              <span className="tabular-nums">
+                                {formatIDR(othersTotal)} ({pct(othersTotal)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2">
+                              <div
+                                className="bg-gray-400 h-2 rounded-full transition-all"
+                                style={{ width: `${pct(othersTotal)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick action links */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      {
+                        label: "+ Pengeluaran",
+                        path: "/expenses",
+                        color:
+                          "bg-red-50 text-red-700 hover:bg-red-100 border-red-200",
+                      },
+                      {
+                        label: "+ Pemasukan",
+                        path: "/income",
+                        color:
+                          "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200",
+                      },
+                      {
+                        label: "Payroll",
+                        path: "/payroll",
+                        color:
+                          "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200",
+                      },
+                      {
+                        label: "Laporan Lengkap",
+                        path: "/daily-report",
+                        color:
+                          "bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200",
+                      },
+                    ].map((btn) => (
+                      <button
+                        key={btn.path}
+                        onClick={() => navigate(btn.path)}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition-colors ${btn.color}`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
       {/* ── Charts ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Fuel chart */}
@@ -330,7 +593,9 @@ export default function DashboardPage() {
             <h2 className="text-base font-semibold text-gray-800">
               Penggunaan BBM per Alat (30 hari)
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">Total liter BBM yang diisi per unit</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Total liter BBM yang diisi per unit
+            </p>
           </div>
           {fuelChartData.length === 0 ? (
             <p className="text-gray-400 text-sm py-10 text-center">
@@ -338,15 +603,32 @@ export default function DashboardPage() {
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={fuelChartData} margin={{ top: 8, right: 8, bottom: 40, left: 0 }}>
+              <BarChart
+                data={fuelChartData}
+                margin={{ top: 8, right: 8, bottom: 40, left: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                <XAxis dataKey="name" angle={-28} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10 }} />
+                <XAxis
+                  dataKey="name"
+                  angle={-28}
+                  textAnchor="end"
+                  height={60}
+                  interval={0}
+                  tick={{ fontSize: 10 }}
+                />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip
                   formatter={(v) => [`${Number(v).toFixed(1)} L`, "Total BBM"]}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""}
+                  labelFormatter={(_, payload) =>
+                    payload?.[0]?.payload?.fullName || ""
+                  }
                 />
-                <Bar dataKey="liters" name="Liter" fill="#d97706" radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="liters"
+                  name="Liter"
+                  fill="#d97706"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -355,15 +637,25 @@ export default function DashboardPage() {
         {/* Project status pie */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="mb-4">
-            <h2 className="text-base font-semibold text-gray-800">Status Proyek</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Distribusi status proyek aktif</p>
+            <h2 className="text-base font-semibold text-gray-800">
+              Status Proyek
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Distribusi status proyek aktif
+            </p>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
-                data={projectData} cx="50%" cy="50%"
-                outerRadius={100} fill="#8884d8" dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                data={projectData}
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
                 labelLine={false}
               >
                 {projectData.map((entry, i) => (
@@ -381,36 +673,60 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3 mb-4">
           <Fuel className="h-5 w-5 text-amber-600" />
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Ringkasan BBM (30 hari)</h2>
-            <p className="text-xs text-gray-400">Per unit yang punya pengisian BBM</p>
+            <h2 className="text-base font-semibold text-gray-800">
+              Ringkasan BBM (30 hari)
+            </h2>
+            <p className="text-xs text-gray-400">
+              Per unit yang punya pengisian BBM
+            </p>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm divide-y divide-gray-100">
             <thead>
               <tr className="bg-gray-50 text-left">
-                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase">Alat</th>
-                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase">Tipe</th>
-                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase text-right">Total BBM (L)</th>
-                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase text-right">Kali Isi</th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase">
+                  Alat
+                </th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase">
+                  Tipe
+                </th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase text-right">
+                  Total BBM (L)
+                </th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase text-right">
+                  Kali Isi
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {fuelEquipmentReport.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-gray-400"
+                  >
                     Belum ada aktivitas BBM dalam periode ini.
                   </td>
                 </tr>
               ) : (
-                fuelEquipmentReport.map(row => (
-                  <tr key={row.equipment_id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-2 font-medium text-gray-900">{row.equipment_name}</td>
-                    <td className="px-4 py-2 text-gray-500">{row.equipment_type}</td>
+                fuelEquipmentReport.map((row) => (
+                  <tr
+                    key={row.equipment_id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-2 font-medium text-gray-900">
+                      {row.equipment_name}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">
+                      {row.equipment_type}
+                    </td>
                     <td className="px-4 py-2 text-right font-semibold text-amber-700 tabular-nums">
                       {row.total_liters.toFixed(1)}
                     </td>
-                    <td className="px-4 py-2 text-right text-gray-600 tabular-nums">{row.refuel_count}</td>
+                    <td className="px-4 py-2 text-right text-gray-600 tabular-nums">
+                      {row.refuel_count}
+                    </td>
                   </tr>
                 ))
               )}
@@ -429,33 +745,56 @@ export default function DashboardPage() {
             <table className="min-w-full text-sm divide-y divide-gray-100">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Nama
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Tipe
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {equipment.slice(0, 8).map(eq => (
+                {equipment.slice(0, 8).map((eq) => (
                   <tr key={eq.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium text-gray-800">{eq.name}</td>
+                    <td className="px-3 py-2 font-medium text-gray-800">
+                      {eq.name}
+                    </td>
                     <td className="px-3 py-2 text-gray-500">{eq.type}</td>
                     <td className="px-3 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        eq.status === "active" ? "bg-green-100 text-green-700"
-                        : eq.status === "maintenance" ? "bg-amber-100 text-amber-700"
-                        : "bg-gray-100 text-gray-600"
-                      }`}>{eq.status}</span>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          eq.status === "active"
+                            ? "bg-green-100 text-green-700"
+                            : eq.status === "maintenance"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {eq.status}
+                      </span>
                     </td>
                   </tr>
                 ))}
                 {equipment.length === 0 && (
-                  <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-400">Tidak ada data</td></tr>
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-3 py-6 text-center text-gray-400"
+                    >
+                      Tidak ada data
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
           </div>
           {equipment.length > 8 && (
-            <p className="text-xs text-gray-400 mt-2 text-right">+ {equipment.length - 8} lainnya</p>
+            <p className="text-xs text-gray-400 mt-2 text-right">
+              + {equipment.length - 8} lainnya
+            </p>
           )}
         </div>
 
@@ -467,33 +806,58 @@ export default function DashboardPage() {
             <table className="min-w-full text-sm divide-y divide-gray-100">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jabatan</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Nama
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Jabatan
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {employees.slice(0, 8).map(emp => (
+                {employees.slice(0, 8).map((emp) => (
                   <tr key={emp.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium text-gray-800">{emp.name}</td>
-                    <td className="px-3 py-2 text-gray-500 text-xs">{emp.position}</td>
+                    <td className="px-3 py-2 font-medium text-gray-800">
+                      {emp.name}
+                    </td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">
+                      {emp.position}
+                    </td>
                     <td className="px-3 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.status === "active" ? "bg-green-100 text-green-700"
-                        : emp.status === "on_leave" ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-600"
-                      }`}>{emp.status ?? "-"}</span>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          emp.status === "active"
+                            ? "bg-green-100 text-green-700"
+                            : emp.status === "on_leave"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {emp.status ?? "-"}
+                      </span>
                     </td>
                   </tr>
                 ))}
                 {employees.length === 0 && (
-                  <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-400">Tidak ada data</td></tr>
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-3 py-6 text-center text-gray-400"
+                    >
+                      Tidak ada data
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
           </div>
           {employees.length > 8 && (
-            <p className="text-xs text-gray-400 mt-2 text-right">+ {employees.length - 8} lainnya</p>
+            <p className="text-xs text-gray-400 mt-2 text-right">
+              + {employees.length - 8} lainnya
+            </p>
           )}
         </div>
       </div>

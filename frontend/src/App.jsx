@@ -21,6 +21,8 @@ import FinancePage from "./pages/FinancePage";
 import FuelPricePage from "./pages/FuelPricePage";
 import RentalRatesPage from "./pages/RentalRatesPage";
 import PayrollPage from "./pages/PayrollPage";
+import ExpensePage from "./pages/ExpensePage";
+import DailyReportPage from "./pages/DailyReportPage";
 import Sidebar from "./components/Sidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -60,6 +62,8 @@ function App() {
           <Route path="/finance/fuel-price" element={<FuelPricePage />} />
           <Route path="/finance/rental-rates" element={<RentalRatesPage />} />
           <Route path="/payroll" element={<PayrollPage />} />
+          <Route path="/expenses" element={<ExpensePage />} />
+          <Route path="/daily-report" element={<DailyReportPage />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>

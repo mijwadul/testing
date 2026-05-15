@@ -1,12 +1,13 @@
 from datetime import date, timedelta
+from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...core.auth import get_current_user
 from ...core.database import get_db
-from ...models import Employee, Equipment, Project, PayrollRecord
+from ...models import Employee, Equipment, FuelLog, FuelPrice, PayrollRecord, Project
 from ...schemas import Employee as EmployeeSchema
 from ...schemas import Equipment as EquipmentSchema
 from ...schemas import Project as ProjectSchema
@@ -17,13 +18,13 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 @router.get("/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
     equipment_count = db.query(Equipment).count()
-    employee_count  = db.query(Employee).filter(Employee.is_active == True).count()
-    project_count   = db.query(Project).count()
+    employee_count = db.query(Employee).filter(Employee.is_active == True).count()
+    project_count = db.query(Project).count()
 
     return {
         "equipment_count": equipment_count,
-        "employee_count":  employee_count,
-        "project_count":   project_count,
+        "employee_count": employee_count,
+        "project_count": project_count,
     }
 
 
@@ -39,7 +40,7 @@ def get_payroll_summary(
     - Paid (this month) count + total value
     - Total net_salary paid this month
     """
-    today      = date.today()
+    today = date.today()
     month_start = today.replace(day=1)
 
     # --- Pending (all time – awaiting GM approval) ---
@@ -88,24 +89,24 @@ def get_payroll_summary(
     )
     pending_list = [
         {
-            "id":            r.id,
+            "id": r.id,
             "employee_name": r.employee.name if r.employee else "-",
-            "period_start":  str(r.period_start),
-            "period_end":    str(r.period_end),
-            "net_salary":    r.net_salary,
+            "period_start": str(r.period_start),
+            "period_end": str(r.period_end),
+            "net_salary": r.net_salary,
         }
         for r in recent_pending
     ]
 
     return {
-        "pending_count":   pending_q.count,
-        "pending_total":   float(pending_q.total),
-        "approved_count":  approved_q.count,
-        "approved_total":  float(approved_q.total),
-        "paid_count":      paid_q.count,
-        "paid_total":      float(paid_q.total),
-        "recent_pending":  pending_list,
-        "month_label":     today.strftime("%B %Y"),
+        "pending_count": pending_q.count,
+        "pending_total": float(pending_q.total),
+        "approved_count": approved_q.count,
+        "approved_total": float(approved_q.total),
+        "paid_count": paid_q.count,
+        "paid_total": float(paid_q.total),
+        "recent_pending": pending_list,
+        "month_label": today.strftime("%B %Y"),
     }
 
 
@@ -125,3 +126,251 @@ def get_employees(db: Session = Depends(get_db)):
 def get_projects(db: Session = Depends(get_db)):
     projects = db.query(Project).all()
     return [ProjectSchema.model_validate(proj) for proj in projects]
+
+
+# ---------------------------------------------------------------------------
+# Laporan Harian Keuangan GM
+# ---------------------------------------------------------------------------
+
+
+@router.get("/daily-report")
+def get_daily_report(
+    report_date: Optional[date] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Laporan harian keuangan untuk GM:
+    - Pengeluaran: gaji (payroll paid hari itu), BBM (fuel_logs x harga BBM), expenses lain-lain
+    - Pemasukan: pembayaran proyek, penjualan material
+    """
+    from datetime import date as date_type
+
+    from ...models.expense import Expense
+    from ...models.income_record import IncomeRecord
+
+    if report_date is None:
+        report_date = date_type.today()
+
+    # 1. GAJI yang dibayar pada tanggal ini
+    payroll_records = (
+        db.query(PayrollRecord)
+        .filter(
+            PayrollRecord.payment_date == report_date,
+            PayrollRecord.payment_status == "paid",
+        )
+        .all()
+    )
+    payroll_total = sum(float(r.net_salary or 0) for r in payroll_records)
+
+    # 2. BBM — ambil harga BBM efektif pada tanggal itu (paling baru sebelum/pada tanggal itu)
+    fuel_price_obj = (
+        db.query(FuelPrice)
+        .filter(func.date(FuelPrice.effective_date) <= report_date)
+        .order_by(FuelPrice.effective_date.desc())
+        .first()
+    )
+    price_per_liter = float(fuel_price_obj.price_per_liter) if fuel_price_obj else 0.0
+
+    fuel_rows = (
+        db.query(FuelLog, Equipment.name.label("equipment_name"))
+        .join(Equipment, FuelLog.equipment_id == Equipment.id)
+        .filter(func.date(FuelLog.refuel_date) == report_date)
+        .all()
+    )
+    total_liters = sum(float(row.FuelLog.liters_filled or 0) for row in fuel_rows)
+    fuel_total = total_liters * price_per_liter
+
+    # 3. Pengeluaran lain-lain dari tabel expenses
+    other_expenses = db.query(Expense).filter(Expense.expense_date == report_date).all()
+    expenses_by_cat: dict = {}
+    for exp in other_expenses:
+        cat = exp.category or "lain-lain"
+        expenses_by_cat[cat] = expenses_by_cat.get(cat, 0) + float(exp.amount or 0)
+    other_expenses_total = sum(float(e.amount or 0) for e in other_expenses)
+
+    # 4. Pemasukan
+    income_records = (
+        db.query(IncomeRecord).filter(IncomeRecord.income_date == report_date).all()
+    )
+    project_income = [r for r in income_records if r.income_type == "project_payment"]
+    material_income = [r for r in income_records if r.income_type == "material_sale"]
+    project_income_total = sum(float(r.amount or 0) for r in project_income)
+    material_income_total = sum(float(r.amount or 0) for r in material_income)
+
+    total_expense = payroll_total + fuel_total + other_expenses_total
+    total_income = project_income_total + material_income_total
+
+    # Build payroll items (join employee name)
+    payroll_items = []
+    for r in payroll_records:
+        emp = db.query(Employee).filter(Employee.id == r.employee_id).first()
+        payroll_items.append(
+            {
+                "id": r.id,
+                "employee_name": emp.name if emp else "-",
+                "position": emp.position if emp else "-",
+                "net_salary": float(r.net_salary or 0),
+                "period_start": str(r.period_start),
+                "period_end": str(r.period_end),
+                "payment_method": r.payment_method,
+            }
+        )
+
+    return {
+        "date": str(report_date),
+        "summary": {
+            "total_income": round(total_income, 2),
+            "total_expense": round(total_expense, 2),
+            "net": round(total_income - total_expense, 2),
+        },
+        "expenses": {
+            "payroll": {
+                "total": round(payroll_total, 2),
+                "count": len(payroll_records),
+                "items": payroll_items,
+            },
+            "fuel": {
+                "total": round(fuel_total, 2),
+                "total_liters": round(total_liters, 2),
+                "price_per_liter": price_per_liter,
+                "count": len(fuel_rows),
+                "items": [
+                    {
+                        "id": row.FuelLog.id,
+                        "equipment_name": row.equipment_name,
+                        "liters": float(row.FuelLog.liters_filled or 0),
+                        "cost": float(row.FuelLog.liters_filled or 0) * price_per_liter,
+                        "location": row.FuelLog.location,
+                        "notes": row.FuelLog.notes,
+                    }
+                    for row in fuel_rows
+                ],
+            },
+            "others": {
+                "total": round(other_expenses_total, 2),
+                "by_category": expenses_by_cat,
+                "count": len(other_expenses),
+                "items": [
+                    {
+                        "id": e.id,
+                        "category": e.category,
+                        "description": e.description,
+                        "amount": float(e.amount or 0),
+                        "notes": e.notes,
+                    }
+                    for e in other_expenses
+                ],
+            },
+        },
+        "income": {
+            "project_payments": {
+                "total": round(project_income_total, 2),
+                "count": len(project_income),
+                "items": [
+                    {
+                        "id": r.id,
+                        "description": r.description,
+                        "amount": float(r.amount or 0),
+                        "payment_term": r.payment_term,
+                        "payment_method": r.payment_method,
+                        "notes": r.notes,
+                    }
+                    for r in project_income
+                ],
+            },
+            "material_sales": {
+                "total": round(material_income_total, 2),
+                "count": len(material_income),
+                "items": [
+                    {
+                        "id": r.id,
+                        "customer_name": r.customer_name,
+                        "material_type": r.material_type,
+                        "quantity": r.quantity,
+                        "unit": r.unit,
+                        "unit_price": r.unit_price,
+                        "amount": float(r.amount or 0),
+                        "notes": r.notes,
+                    }
+                    for r in material_income
+                ],
+            },
+        },
+    }
+
+
+@router.get("/daily-report/history")
+def get_daily_report_history(
+    days: int = Query(default=7, ge=1, le=90),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Ringkasan laporan harian untuk N hari terakhir."""
+    from datetime import date as date_type
+
+    from ...models.expense import Expense
+    from ...models.income_record import IncomeRecord
+
+    today = date_type.today()
+    result = []
+
+    for i in range(days - 1, -1, -1):  # dari paling lama ke hari ini
+        d = today - timedelta(days=i)
+
+        # Payroll
+        p_total = (
+            db.query(func.coalesce(func.sum(PayrollRecord.net_salary), 0))
+            .filter(
+                PayrollRecord.payment_date == d,
+                PayrollRecord.payment_status == "paid",
+            )
+            .scalar()
+        )
+
+        # Fuel cost
+        fuel_price_obj = (
+            db.query(FuelPrice)
+            .filter(func.date(FuelPrice.effective_date) <= d)
+            .order_by(FuelPrice.effective_date.desc())
+            .first()
+        )
+        ppl = float(fuel_price_obj.price_per_liter) if fuel_price_obj else 0.0
+        liters = (
+            db.query(func.coalesce(func.sum(FuelLog.liters_filled), 0))
+            .filter(func.date(FuelLog.refuel_date) == d)
+            .scalar()
+        )
+        fuel_cost = float(liters or 0) * ppl
+
+        # Other expenses
+        other = (
+            db.query(func.coalesce(func.sum(Expense.amount), 0))
+            .filter(Expense.expense_date == d)
+            .scalar()
+        )
+
+        # Income
+        income = (
+            db.query(func.coalesce(func.sum(IncomeRecord.amount), 0))
+            .filter(IncomeRecord.income_date == d)
+            .scalar()
+        )
+
+        total_exp = float(p_total or 0) + fuel_cost + float(other or 0)
+        total_inc = float(income or 0)
+
+        result.append(
+            {
+                "date": str(d),
+                "date_label": d.strftime("%d %b"),
+                "total_expense": round(total_exp, 2),
+                "total_income": round(total_inc, 2),
+                "net": round(total_inc - total_exp, 2),
+                "payroll": round(float(p_total or 0), 2),
+                "fuel": round(fuel_cost, 2),
+                "others": round(float(other or 0), 2),
+            }
+        )
+
+    return result

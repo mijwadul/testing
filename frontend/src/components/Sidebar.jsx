@@ -23,6 +23,8 @@ import {
   DollarSign,
   Briefcase,
   FileText,
+  Receipt,
+  BarChart3,
 } from "lucide-react";
 
 const Sidebar = ({ children }) => {
@@ -201,6 +203,18 @@ const Sidebar = ({ children }) => {
           icon: ShoppingCart,
           label: "Penjualan Material Tambang",
           show: true,
+        },
+        {
+          path: "/expenses",
+          icon: Receipt,
+          label: "Pengeluaran Harian",
+          show: true,
+        },
+        {
+          path: "/daily-report",
+          icon: BarChart3,
+          label: "Laporan Keuangan",
+          show: isGM,
         },
       ];
       items.push({
