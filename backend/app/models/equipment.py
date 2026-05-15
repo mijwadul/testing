@@ -7,7 +7,9 @@ class Equipment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    type = Column(String, nullable=False)  # e.g., Excavator, Truck
+    brand = Column(String, nullable=True)  # Merk alat berat
+    type = Column(String, nullable=False)  # e.g., Bucket Breaker, Loader
+    capacity = Column(Float, nullable=True)  # Kapasitas dalam ton
     location = Column(String)
     status = Column(String, default="active")  # active, maintenance, inactive
     

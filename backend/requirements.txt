@@ -24,3 +24,8 @@ python-jose[cryptography]  # JWT token
 python-multipart           # parsing form data (login)
 jinja2                     # HTML templates
 weasyprint                 # generate laporan PDF
+
+# ─── Testing ──────────────────────────────────────────────────
+pytest                     # test runner
+pytest-asyncio             # async test support
+httpx                      # HTTP client untuk TestClient FastAPI

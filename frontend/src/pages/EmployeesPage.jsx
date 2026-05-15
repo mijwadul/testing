@@ -268,8 +268,11 @@ const EmployeesPage = () => {
       const method = editingEmployee ? 'PUT' : 'POST';
       
       // Remove empty strings so optional fields don't trigger validation errors
+      // Also remove read-only calculated fields
+      const readonlyFields = ['loan_balance', 'loan_deduction_per_period', 'debt_to_company'];
       const formData = Object.entries(employeeForm).reduce((acc, [key, value]) => {
         if (value === '' || value === null || value === undefined) return acc;
+        if (readonlyFields.includes(key)) return acc;
         acc[key] = value;
         return acc;
       }, {});
@@ -464,9 +467,6 @@ const EmployeesPage = () => {
         body: JSON.stringify({
           daily_salary: financeForm.daily_salary === '' ? null : parseFloat(financeForm.daily_salary),
           hourly_overtime_rate: financeForm.hourly_overtime_rate === '' ? null : parseFloat(financeForm.hourly_overtime_rate),
-          loan_balance: financeForm.loan_balance === '' ? null : parseFloat(financeForm.loan_balance),
-          loan_deduction_per_period: financeForm.loan_deduction_per_period === '' ? null : parseFloat(financeForm.loan_deduction_per_period),
-          debt_to_company: financeForm.debt_to_company === '' ? null : parseFloat(financeForm.debt_to_company),
           bank_name: financeForm.bank_name || null,
           bank_account_number: financeForm.bank_account_number || null,
           bank_account_name: financeForm.bank_account_name || null
@@ -1351,9 +1351,9 @@ const EmployeesPage = () => {
                           step="0.01"
                           value={employeeForm.loan_balance}
                           onChange={(e) => setEmployeeForm({...employeeForm, loan_balance: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                           placeholder="0"
-                          disabled={!canAccessFinancial}
+                          disabled={true}
                         />
                       </div>
                       
@@ -1364,9 +1364,9 @@ const EmployeesPage = () => {
                           step="0.01"
                           value={employeeForm.loan_deduction_per_period}
                           onChange={(e) => setEmployeeForm({...employeeForm, loan_deduction_per_period: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                           placeholder="0"
-                          disabled={!canAccessFinancial}
+                          disabled={true}
                         />
                       </div>
                       
@@ -1377,9 +1377,9 @@ const EmployeesPage = () => {
                           step="0.01"
                           value={employeeForm.debt_to_company}
                           onChange={(e) => setEmployeeForm({...employeeForm, debt_to_company: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                           placeholder="0"
-                          disabled={!canAccessFinancial}
+                          disabled={true}
                         />
                       </div>
                     </div>
@@ -1650,8 +1650,9 @@ const EmployeesPage = () => {
                       type="number"
                       value={financeForm.loan_balance}
                       onChange={(e) => setFinanceForm({...financeForm, loan_balance: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                       placeholder="0"
+                      disabled={true}
                     />
                   </div>
                   
@@ -1661,8 +1662,9 @@ const EmployeesPage = () => {
                       type="number"
                       value={financeForm.loan_deduction_per_period}
                       onChange={(e) => setFinanceForm({...financeForm, loan_deduction_per_period: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                       placeholder="0"
+                      disabled={true}
                     />
                   </div>
                   
@@ -1672,8 +1674,9 @@ const EmployeesPage = () => {
                       type="number"
                       value={financeForm.debt_to_company}
                       onChange={(e) => setFinanceForm({...financeForm, debt_to_company: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                       placeholder="0"
+                      disabled={true}
                     />
                   </div>
                 </div>

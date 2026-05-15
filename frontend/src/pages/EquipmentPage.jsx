@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit, Trash2, Fuel, Eye, AlertTriangle } from "lucide-react";
+import { Plus, Edit, Trash2, Fuel, Eye, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL } from "../api/auth";
 import AlertModal from "../components/AlertModal";
@@ -14,13 +14,21 @@ const EquipmentPage = () => {
   const [editingEquipment, setEditingEquipment] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteEquipmentId, setDeleteEquipmentId] = useState(null);
+  const [showBrandDeleteModal, setShowBrandDeleteModal] = useState(false);
+  const [brandToDelete, setBrandToDelete] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [fuelReport, setFuelReport] = useState([]);
   const [userRole, setUserRole] = useState("user"); // Simulasi role user
+  const [brands, setBrands] = useState(() => {
+    const saved = localStorage.getItem("equipmentBrands");
+    return saved ? JSON.parse(saved) : ["Caterpillar", "Komatsu", "Hitachi", "Volvo", "JCB"];
+  });
   const [formData, setFormData] = useState({
     name: "",
+    brand: "",
     type: "",
+    capacity: "",
     location: "",
     status: "active",
     ownership_status: "internal",
@@ -82,6 +90,7 @@ const EquipmentPage = () => {
       // Convert empty strings to null for decimal fields to avoid 422 validation errors
       const payload = {
         ...formData,
+        capacity: formData.capacity === "" ? null : parseFloat(formData.capacity),
         rental_rate_per_hour:
           formData.rental_rate_per_hour === ""
             ? null
@@ -128,7 +137,9 @@ const EquipmentPage = () => {
     setEditingEquipment(item);
     setFormData({
       name: item.name,
+      brand: item.brand || "",
       type: item.type,
+      capacity: item.capacity || "",
       location: item.location || "",
       status: item.status,
       ownership_status: item.ownership_status || "internal",
@@ -175,10 +186,43 @@ const EquipmentPage = () => {
     }
   };
 
+  const addNewBrand = (newBrand) => {
+    if (newBrand && !brands.includes(newBrand)) {
+      const updatedBrands = [...brands, newBrand];
+      setBrands(updatedBrands);
+      localStorage.setItem("equipmentBrands", JSON.stringify(updatedBrands));
+      setFormData({ ...formData, brand: newBrand });
+    }
+  };
+
+  const handleDeleteBrand = (brand) => {
+    setBrandToDelete(brand);
+    setShowBrandDeleteModal(true);
+  };
+
+  const confirmDeleteBrand = () => {
+    if (!brandToDelete) return;
+    const updatedBrands = brands.filter((b) => b !== brandToDelete);
+    setBrands(updatedBrands);
+    localStorage.setItem("equipmentBrands", JSON.stringify(updatedBrands));
+    if (formData.brand === brandToDelete) {
+      setFormData({ ...formData, brand: "" });
+    }
+    setShowBrandDeleteModal(false);
+    setBrandToDelete(null);
+    toast.success(`Merk ${brandToDelete} berhasil dihapus`);
+  };
+
+  const equipmentTypes = ["Excavator (Bucket)", "Excavator (Breaker)", "Loader", "Truck", "Bulldozer", "Crane", "Forklift"];
+
+  const capacityOptions = [20, 30, 40, 50];
+
   const resetForm = () => {
     setFormData({
       name: "",
+      brand: "",
       type: "",
+      capacity: "",
       location: "",
       status: "active",
       ownership_status: "internal",
@@ -252,7 +296,13 @@ const EquipmentPage = () => {
                 Name
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Brand
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Type
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Capacity (Ton)
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Location
@@ -303,7 +353,9 @@ const EquipmentPage = () => {
                   title="Klik untuk melihat detail"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">{item.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{item.brand || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{item.type}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{item.capacity ? `${item.capacity} Ton` : "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {item.location}
                   </td>
@@ -437,17 +489,103 @@ const EquipmentPage = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
+                    Brand
+                  </label>
+                  <select
+                    value={formData.brand}
+                    onChange={(e) =>
+                      setFormData({ ...formData, brand: e.target.value })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                  >
+                    <option value="">Select Brand</option>
+                    {brands.map((brand) => (
+                      <option key={brand} value={brand}>
+                        {brand}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-2 flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="Add new brand"
+                      className="flex-1 border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addNewBrand(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = e.target.previousElementSibling;
+                        addNewBrand(input.value);
+                        input.value = "";
+                      }}
+                      className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {brands.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {brands.map((brand) => (
+                        <div key={brand} className="inline-flex items-center bg-gray-100 rounded-full px-3 py-1 text-xs text-gray-700 border border-gray-200">
+                          <span>{brand}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBrand(brand)}
+                            className="ml-1.5 text-gray-400 hover:text-red-500 focus:outline-none"
+                            title="Hapus merk"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
                     Type
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.type}
                     onChange={(e) =>
                       setFormData({ ...formData, type: e.target.value })
                     }
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                     required
-                  />
+                  >
+                    <option value="">Select Type</option>
+                    {equipmentTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Capacity (Ton)
+                  </label>
+                  <select
+                    value={formData.capacity}
+                    onChange={(e) =>
+                      setFormData({ ...formData, capacity: e.target.value })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                  >
+                    <option value="">Select Capacity</option>
+                    {capacityOptions.map((cap) => (
+                      <option key={cap} value={cap}>
+                        {cap} Ton
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
@@ -580,6 +718,16 @@ const EquipmentPage = () => {
         onConfirm={confirmDelete}
         title="Konfirmasi Hapus"
         message="Apakah Anda yakin ingin menghapus equipment ini?"
+        confirmText="Hapus"
+        cancelText="Batal"
+      />
+
+      <AlertModal
+        isOpen={showBrandDeleteModal}
+        onClose={() => setShowBrandDeleteModal(false)}
+        onConfirm={confirmDeleteBrand}
+        title="Konfirmasi Hapus Merk"
+        message={`Apakah Anda yakin ingin menghapus merk "${brandToDelete}"?`}
         confirmText="Hapus"
         cancelText="Batal"
       />

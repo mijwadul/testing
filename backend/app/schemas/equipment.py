@@ -7,7 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class EquipmentBase(BaseModel):
     name: str
+    brand: Optional[str] = None
     type: str
+    capacity: Optional[float] = None
     location: Optional[str] = None
     status: Optional[str] = "active"
     ownership_status: Optional[str] = "internal"
@@ -22,7 +24,9 @@ class EquipmentCreate(EquipmentBase):
 
 class EquipmentUpdate(BaseModel):
     name: Optional[str] = None
+    brand: Optional[str] = None
     type: Optional[str] = None
+    capacity: Optional[float] = None
     location: Optional[str] = None
     status: Optional[str] = None
     ownership_status: Optional[str] = None

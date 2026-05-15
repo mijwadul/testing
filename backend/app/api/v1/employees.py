@@ -798,6 +798,15 @@ def create_loan(
     )
     db.add(db_loan)
     db.commit()
+
+    # Recalculate employee loan_balance
+    total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
+        EmployeeLoan.employee_id == employee.id,
+        EmployeeLoan.is_active == True
+    ).scalar() or 0
+    employee.loan_balance = total_loan
+    db.commit()
+
     db.refresh(db_loan)
 
     return db_loan
@@ -890,7 +899,24 @@ def update_loan(
     for key, value in update_data.items():
         setattr(loan, key, value)
 
+    # Recalculate if remaining_balance was modified
+    if 'nominal' in update_data and 'remaining_balance' not in update_data:
+        # Just an assumption that if nominal changes and not remaining_balance, we should probably update remaining_balance too.
+        # Let's keep it simple and just do what the frontend sends.
+        pass
+
     db.commit()
+    
+    # Recalculate employee loan_balance
+    employee = db.query(Employee).filter(Employee.id == loan.employee_id).first()
+    if employee:
+        total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
+            EmployeeLoan.employee_id == employee.id,
+            EmployeeLoan.is_active == True
+        ).scalar() or 0
+        employee.loan_balance = total_loan
+        db.commit()
+
     db.refresh(loan)
 
     return loan
@@ -916,7 +942,17 @@ def delete_loan(
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found")
 
+    employee = db.query(Employee).filter(Employee.id == loan.employee_id).first()
+
     db.delete(loan)
     db.commit()
+
+    if employee:
+        total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
+            EmployeeLoan.employee_id == employee.id,
+            EmployeeLoan.is_active == True
+        ).scalar() or 0
+        employee.loan_balance = total_loan
+        db.commit()
 
     return {"message": "Loan deleted successfully"}

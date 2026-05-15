@@ -44,7 +44,7 @@ const EquipmentDetailModal = ({
               {equipment.name}
             </h3>
             <p className="text-sm text-gray-500 mt-0.5">
-              {equipment.type} &bull; ID #{equipment.id}
+              {equipment.brand && `${equipment.brand} - `}{equipment.type}{equipment.capacity && ` (${equipment.capacity} Ton)`} &bull; ID #{equipment.id}
             </p>
           </div>
           <button
@@ -112,10 +112,26 @@ const EquipmentDetailModal = ({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Merk
+                    </label>
+                    <p className="text-sm text-gray-900 mt-0.5">
+                      {equipment.brand || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">
                       Tipe
                     </label>
                     <p className="text-sm text-gray-900 mt-0.5">
                       {equipment.type}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Kapasitas
+                    </label>
+                    <p className="text-sm text-gray-900 mt-0.5">
+                      {equipment.capacity ? `${equipment.capacity} Ton` : "-"}
                     </p>
                   </div>
                   <div>
