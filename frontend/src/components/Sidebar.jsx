@@ -1,4 +1,4 @@
-import { API_URL } from "../../api/auth";
+import { API_URL } from "../api/auth";
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
