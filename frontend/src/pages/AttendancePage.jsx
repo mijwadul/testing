@@ -1,3 +1,4 @@
+import { API_URL } from "../../api/auth";
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, UserCheck, Users, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -82,7 +83,7 @@ const AttendancePage = () => {
   }, [attendance, employees]);
 
   const fetchCurrentUser = async () => {
-    const response = await fetch('/api/v1/auth/me', {
+    const response = await fetch(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!response.ok) throw new Error('Gagal memuat user');
@@ -91,7 +92,7 @@ const AttendancePage = () => {
   };
 
   const fetchEmployees = async () => {
-    const response = await fetch('/api/v1/employees/employees', {
+    const response = await fetch(`${API_URL}/employees/employees`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!response.ok) throw new Error('Gagal memuat karyawan');
@@ -109,7 +110,7 @@ const AttendancePage = () => {
     if (activeFilters.end_date) params.append('end_date', activeFilters.end_date);
 
     const queryString = params.toString();
-    const response = await fetch(`/api/v1/employees/attendance${queryString ? `?${queryString}` : ''}`, {
+    const response = await fetch(`${API_URL}/employees/attendance${queryString ? `?${queryString}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!response.ok) throw new Error('Gagal memuat data absensi');
@@ -166,7 +167,7 @@ const AttendancePage = () => {
 
     try {
       const method = editingId ? 'PUT' : 'POST';
-      const url = editingId ? `/api/v1/employees/attendance/${editingId}` : '/api/v1/employees/attendance';
+      const url = editingId ? `${API_URL}/employees/attendance/${editingId}` : `${API_URL}/employees/attendance`;
       
       const response = await fetch(url, {
         method,
@@ -228,7 +229,7 @@ const AttendancePage = () => {
   const confirmDelete = async () => {
     if (!deleteModal.attendanceId) return;
     try {
-      const response = await fetch(`/api/v1/employees/attendance/${deleteModal.attendanceId}`, {
+      const response = await fetch(`${API_URL}/employees/attendance/${deleteModal.attendanceId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

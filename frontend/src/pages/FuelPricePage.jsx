@@ -1,3 +1,4 @@
+import { API_URL } from "../../api/auth";
 import React, { useState, useEffect } from 'react';
 import { Fuel, Save, History, AlertCircle, CheckCircle, Package, XCircle, Trash2, Info } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,7 +42,7 @@ const FuelPricePage = () => {
   const fetchCurrentUser = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/auth/me', {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -56,7 +57,7 @@ const FuelPricePage = () => {
   const fetchStockInfo = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/fuel/stock', {
+      const response = await fetch(`${API_URL}/fuel/stock`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -71,7 +72,7 @@ const FuelPricePage = () => {
   const fetchPurchases = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/fuel/price', {
+      const response = await fetch(`${API_URL}/fuel/price`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -107,7 +108,7 @@ const FuelPricePage = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/fuel/price', {
+      const response = await fetch(`${API_URL}/fuel/price`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -145,13 +146,13 @@ const FuelPricePage = () => {
       let url, method;
       
       if (action === 'approve') {
-        url = `/api/v1/fuel/price/${id}/approve?status=approved`;
+        url = `${API_URL}/fuel/price/${id}/approve?status=approved`;
         method = 'PUT';
       } else if (action === 'reject') {
-        url = `/api/v1/fuel/price/${id}/approve?status=rejected`;
+        url = `${API_URL}/fuel/price/${id}/approve?status=rejected`;
         method = 'PUT';
       } else if (action === 'delete') {
-        url = `/api/v1/fuel/price/${id}`;
+        url = `${API_URL}/fuel/price/${id}`;
         method = 'DELETE';
       }
 

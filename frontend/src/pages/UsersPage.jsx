@@ -84,7 +84,7 @@ const UsersPage = () => {
     setLoadingEmployees(true);
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/v1/employees/employees", {
+      const response = await fetch(`${API_URL}/employees/employees`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -107,7 +107,7 @@ const UsersPage = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `/api/v1/employees/employees/${employeeId}`,
+        `${API_URL}/employees/employees/${employeeId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -131,7 +131,7 @@ const UsersPage = () => {
   const fetchCurrentUser = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/v1/auth/me", {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -146,7 +146,7 @@ const UsersPage = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/v1/auth/users", {
+      const response = await fetch(`${API_URL}/auth/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -167,8 +167,8 @@ const UsersPage = () => {
     e.preventDefault();
     const token = localStorage.getItem("token");
     const url = editingUser
-      ? `/api/v1/auth/users/${editingUser.id}`
-      : "/api/v1/auth/users";
+      ? `${API_URL}/auth/users/${editingUser.id}`
+      : `${API_URL}/auth/users`;
     const method = editingUser ? "PUT" : "POST";
 
     try {
@@ -230,7 +230,7 @@ const UsersPage = () => {
 
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(`/api/v1/auth/users/${deleteUserId}`, {
+      const response = await fetch(`${API_URL}/auth/users/${deleteUserId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

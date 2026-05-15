@@ -1,3 +1,4 @@
+import { API_URL } from "../../api/auth";
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, User, DollarSign, Calendar, CreditCard, AlertCircle, 
          Search, Filter, Download, TrendingUp, Briefcase, MapPin, Phone, Mail, 
@@ -165,7 +166,7 @@ const EmployeesPage = () => {
   const fetchCurrentUser = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/auth/me', {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -182,7 +183,7 @@ const EmployeesPage = () => {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/employees/employees', {
+      const response = await fetch(`${API_URL}/employees/employees`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -200,7 +201,7 @@ const EmployeesPage = () => {
   const fetchEmployeeDetail = async (employeeId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/employees/employees/${employeeId}`, {
+      const response = await fetch(`${API_URL}/employees/employees/${employeeId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -218,7 +219,7 @@ const EmployeesPage = () => {
   const fetchPayrollRecords = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/employees/payroll', {
+      const response = await fetch(`${API_URL}/employees/payroll`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -234,8 +235,8 @@ const EmployeesPage = () => {
     try {
       const token = localStorage.getItem('token');
       const url = employeeId 
-        ? `/api/v1/employees/loans/employee/${employeeId}`
-        : `/api/v1/employees/loans`;
+        ? `${API_URL}/employees/loans/employee/${employeeId}`
+        : `${API_URL}/employees/loans`;
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -270,8 +271,8 @@ const EmployeesPage = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingEmployee 
-        ? `/api/v1/employees/employees/${editingEmployee.id}`
-        : '/api/v1/employees/employees';
+        ? `${API_URL}/employees/employees/${editingEmployee.id}`
+        : `${API_URL}/employees/employees`;
       
       const method = editingEmployee ? 'PUT' : 'POST';
       
@@ -334,7 +335,7 @@ const EmployeesPage = () => {
     try {
       const token = localStorage.getItem('token');
       const payload = preparePayrollPayload();
-      const response = await fetch('/api/v1/employees/payroll/calculate', {
+      const response = await fetch(`${API_URL}/employees/payroll/calculate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -359,7 +360,7 @@ const EmployeesPage = () => {
     try {
       const token = localStorage.getItem('token');
       const payload = preparePayrollPayload();
-      const response = await fetch('/api/v1/employees/payroll', {
+      const response = await fetch(`${API_URL}/employees/payroll`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -385,7 +386,7 @@ const EmployeesPage = () => {
   const handleDeleteEmployee = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/employees/employees/${deleteEmployeeId}`, {
+      const response = await fetch(`${API_URL}/employees/employees/${deleteEmployeeId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -406,7 +407,7 @@ const EmployeesPage = () => {
   const openEditForm = async (employee) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/employees/employees/${employee.id}`, {
+      const response = await fetch(`${API_URL}/employees/employees/${employee.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -481,7 +482,7 @@ const EmployeesPage = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/employees/employees/${selectedEmployeeForFinance.id}`, {
+      const response = await fetch(`${API_URL}/employees/employees/${selectedEmployeeForFinance.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -582,8 +583,8 @@ const EmployeesPage = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingLoan 
-        ? `/api/v1/employees/loans/${editingLoan.id}`
-        : `/api/v1/employees/loans?employee_id=${selectedEmployeeForLoan.id}`;
+        ? `${API_URL}/employees/loans/${editingLoan.id}`
+        : `${API_URL}/employees/loans?employee_id=${selectedEmployeeForLoan.id}`;
       
       const method = editingLoan ? 'PUT' : 'POST';
       
@@ -621,7 +622,7 @@ const EmployeesPage = () => {
   const handleDeleteLoan = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/employees/loans/${deleteLoanId}`, {
+      const response = await fetch(`${API_URL}/employees/loans/${deleteLoanId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

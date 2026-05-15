@@ -1,3 +1,4 @@
+import { API_URL } from "../../api/auth";
 import React, { useState, useEffect } from 'react';
 import { Truck, DollarSign, Save, Filter, Download, AlertCircle, Building2, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,7 +29,7 @@ const RentalRatesPage = () => {
   const fetchCurrentUser = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/auth/me', {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -43,7 +44,7 @@ const RentalRatesPage = () => {
   const fetchEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/equipment', {
+      const response = await fetch(`${API_URL}/equipment`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -71,7 +72,7 @@ const RentalRatesPage = () => {
   const handleSave = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/equipment/${id}`, {
+      const response = await fetch(`${API_URL}/equipment/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

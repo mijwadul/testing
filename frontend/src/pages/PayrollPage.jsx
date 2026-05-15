@@ -1,3 +1,4 @@
+import { API_URL } from "../../api/auth";
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import {
 import AlertModal from "../components/AlertModal";
 
 // ─── Axios instance ────────────────────────────────────────────────────────────
-const api = axios.create({ baseURL: "/api/v1" });
+const api = axios.create({ baseURL: API_URL });
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -146,7 +147,7 @@ const PayrollPage = () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
-        const res = await fetch("/api/v1/auth/me", {
+        const res = await fetch(`${API_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -343,7 +344,7 @@ const PayrollPage = () => {
       setDownloadingId(payrollId);
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `/api/v1/employees/payroll/${payrollId}/pdf`,
+        `${API_URL}/employees/payroll/${payrollId}/pdf`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },

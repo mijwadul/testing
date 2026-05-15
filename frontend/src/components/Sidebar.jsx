@@ -1,3 +1,4 @@
+import { API_URL } from "../../api/auth";
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -70,7 +71,7 @@ const Sidebar = ({ children }) => {
       const token = localStorage.getItem("token");
       if (!token) return;
       try {
-        const response = await fetch("/api/v1/auth/me", {
+        const response = await fetch(`${API_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.ok) {
