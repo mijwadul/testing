@@ -181,8 +181,11 @@ def get_daily_report(
     total_liters = sum(float(row.FuelLog.liters_filled or 0) for row in fuel_rows)
     fuel_total = total_liters * price_per_liter
 
-    # 3. Pengeluaran lain-lain dari tabel expenses
-    other_expenses = db.query(Expense).filter(Expense.expense_date == report_date).all()
+    # 3. Pengeluaran lain-lain dari tabel expenses (hanya yang sudah diapprove)
+    other_expenses = db.query(Expense).filter(
+        Expense.expense_date == report_date,
+        Expense.approval_status == "approved"
+    ).all()
     expenses_by_cat: dict = {}
     for exp in other_expenses:
         cat = exp.category or "lain-lain"

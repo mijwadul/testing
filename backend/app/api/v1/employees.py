@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
-from sqlalchemy import and_, between, func
+from sqlalchemy import and_, or_, between, func
 from sqlalchemy.orm import Session
 
 # Import pdf service at module level to avoid stale cache on hot-reload
@@ -654,7 +654,9 @@ def create_attendance(
     # Calculate work hours if check_out provided
     work_hours = 0
     if attendance.check_in and attendance.check_out:
-        work_hours = (attendance.check_out - attendance.check_in).total_seconds() / 3600
+        cout = attendance.check_out.replace(tzinfo=None) if attendance.check_out.tzinfo else attendance.check_out
+        cin = attendance.check_in.replace(tzinfo=None) if attendance.check_in.tzinfo else attendance.check_in
+        work_hours = (cout - cin).total_seconds() / 3600
 
     db_attendance = Attendance(**attendance_data, work_hours=work_hours)
 
@@ -709,7 +711,9 @@ def update_attendance(
         
     # Recalculate work_hours if check_in and check_out are present
     if attendance.check_in and attendance.check_out:
-        attendance.work_hours = (attendance.check_out - attendance.check_in).total_seconds() / 3600
+        cout = attendance.check_out.replace(tzinfo=None) if attendance.check_out.tzinfo else attendance.check_out
+        cin = attendance.check_in.replace(tzinfo=None) if attendance.check_in.tzinfo else attendance.check_in
+        attendance.work_hours = (cout - cin).total_seconds() / 3600
 
     db.commit()
     db.refresh(attendance)
@@ -763,16 +767,19 @@ def get_attendance(
     """
     query = db.query(Attendance)
 
-    # Field staff can only see own attendance
+    # Field staff can see own attendance and operation department attendance
     if current_user.role == "field" and not current_user.is_superuser:
         # Find employee linked to user
         employee = (
             db.query(Employee).filter(Employee.user_id == current_user.id).first()
         )
-        if employee:
-            query = query.filter(Attendance.employee_id == employee.id)
-        else:
-            return []  # No employee linked, return empty
+        employee_id_filter = employee.id if employee else -1
+        query = query.join(Employee, Attendance.employee_id == Employee.id).filter(
+            or_(
+                Attendance.employee_id == employee_id_filter,
+                Employee.department.ilike("operation%")
+            )
+        )
     elif employee_id:
         query = query.filter(Attendance.employee_id == employee_id)
 

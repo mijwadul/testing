@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, X, Edit2, Trash2, Filter, RefreshCw,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  Receipt, BarChart2, Calendar, AlertCircle, Search,
+  Receipt, BarChart2, Calendar, AlertCircle, Search, CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_URL } from '../api/auth';
@@ -467,6 +467,21 @@ const ExpensePage = () => {
     }
   };
 
+  const handleApprove = async (exp) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/expenses/${exp.id}/approve`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Gagal approve pengeluaran');
+      toast.success('Pengeluaran disetujui.');
+      fetchExpenses();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -618,6 +633,7 @@ const ExpensePage = () => {
                     <SortIcon field="category" sortField={sortField} sortDir={sortDir} />
                   </span>
                 </th>
+                <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-left">Deskripsi</th>
                 <th
                   className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100 select-none"
@@ -645,7 +661,7 @@ const ExpensePage = () => {
                 ))
               ) : paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center">
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <AlertCircle size={40} className="mx-auto mb-3 text-gray-300" />
                     <p className="text-gray-500 font-medium">Tidak ada pengeluaran ditemukan</p>
                     <p className="text-gray-400 text-xs mt-1">
@@ -665,6 +681,17 @@ const ExpensePage = () => {
                     <td className="px-4 py-3">
                       <CategoryBadge value={exp.category} />
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {exp.approval_status === "approved" ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                          Approved
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          Pending
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-700">
                       <p className="max-w-xs truncate" title={exp.description}>
                         {exp.description}
@@ -680,6 +707,15 @@ const ExpensePage = () => {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
+                        {canDelete && exp.approval_status !== "approved" && (
+                          <button
+                            onClick={() => handleApprove(exp)}
+                            title="Approve"
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          >
+                            <CheckCircle size={15} />
+                          </button>
+                        )}
                         <button
                           onClick={() => openEdit(exp)}
                           title="Edit"

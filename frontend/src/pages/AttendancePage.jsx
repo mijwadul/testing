@@ -33,7 +33,6 @@ const AttendancePage = () => {
     status: 'present',
     check_in: '',
     check_out: '',
-    check_out: '',
     notes: ''
   });
   const [editingId, setEditingId] = useState(null);

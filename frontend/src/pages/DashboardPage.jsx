@@ -40,6 +40,12 @@ import AlertModal from "../components/AlertModal";
 import { API_URL } from "../api/auth";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+const toLocalDateInput = (value) => {
+  const date = value ? new Date(value) : new Date();
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 10);
+};
+
 const formatIDR = (v) =>
   Number(v ?? 0).toLocaleString("id-ID", {
     style: "currency",
@@ -103,6 +109,7 @@ export default function DashboardPage() {
   const [approvingId, setApprovingId] = useState(null);
   const [dailyReport, setDailyReport] = useState(null);
   const [loadingDaily, setLoadingDaily] = useState(false);
+  const [dailyReportDate, setDailyReportDate] = useState(toLocalDateInput(new Date()));
   const [todayAttendance, setTodayAttendance] = useState([]);
   const [selectedFieldEmployee, setSelectedFieldEmployee] = useState("");
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -132,12 +139,10 @@ export default function DashboardPage() {
       .catch(() => {});
   }, [authFetch]);
 
-  // ── fetch all dashboard data ──
   const fetchAll = useCallback(async () => {
     setLoadingPayroll(true);
-    setLoadingDaily(true);
     try {
-      const [s, pe, fe, fr, eq, emp, proj, dr] = await Promise.allSettled([
+      const [s, pe, fe, fr, eq, emp, proj] = await Promise.allSettled([
         authFetch(`${API_URL}/dashboard/stats`),
         authFetch(`${API_URL}/dashboard/payroll-summary`),
         authFetch(`${API_URL}/fuel/efficiency?days=30`),
@@ -145,7 +150,6 @@ export default function DashboardPage() {
         authFetch(`${API_URL}/dashboard/equipment`),
         authFetch(`${API_URL}/dashboard/employees`),
         authFetch(`${API_URL}/dashboard/projects`),
-        authFetch(`${API_URL}/dashboard/daily-report`),
       ]);
       if (s.status === "fulfilled") setStats(s.value);
       if (pe.status === "fulfilled") setPayrollSummary(pe.value);
@@ -154,12 +158,26 @@ export default function DashboardPage() {
       if (eq.status === "fulfilled") setEquipment(eq.value);
       if (emp.status === "fulfilled") setEmployees(emp.value);
       if (proj.status === "fulfilled") setProjects(proj.value);
-      if (dr.status === "fulfilled") setDailyReport(dr.value);
     } finally {
       setLoadingPayroll(false);
-      setLoadingDaily(false);
     }
   }, [authFetch]);
+
+  const fetchDailyReport = useCallback(async () => {
+    setLoadingDaily(true);
+    try {
+      const dr = await authFetch(`${API_URL}/dashboard/daily-report?report_date=${dailyReportDate}`);
+      setDailyReport(dr);
+    } catch (e) {
+      console.error("Failed to fetch daily report:", e);
+    } finally {
+      setLoadingDaily(false);
+    }
+  }, [authFetch, dailyReportDate]);
+
+  useEffect(() => {
+    fetchDailyReport();
+  }, [fetchDailyReport]);
 
   useEffect(() => {
     fetchAll();
@@ -168,7 +186,7 @@ export default function DashboardPage() {
   const fetchTodayAttendance = useCallback(async () => {
     if (currentUser?.role !== "field") return;
     try {
-      const today = new Date().toLocaleDateString('en-CA');
+      const today = toLocalDateInput(new Date());
       const res = await authFetch(`${API_URL}/employees/attendance?start_date=${today}&end_date=${today}`);
       setTodayAttendance(res);
     } catch (e) {
@@ -216,7 +234,7 @@ export default function DashboardPage() {
     setAttendanceLoading(true);
     try {
       const now = new Date();
-      const todayStr = now.toLocaleDateString('en-CA');
+      const todayStr = toLocalDateInput(now);
       const isoTime = now.toISOString();
 
       let url, method, body;
@@ -570,11 +588,19 @@ export default function DashboardPage() {
 
           return (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <BarChart2 className="w-5 h-5 text-emerald-600" />
-                  Laporan Keuangan Hari Ini
-                </h2>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <BarChart2 className="w-5 h-5 text-emerald-600" />
+                    Laporan Keuangan
+                  </h2>
+                  <input
+                    type="date"
+                    value={dailyReportDate}
+                    onChange={(e) => setDailyReportDate(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
                 <button
                   onClick={() => navigate("/daily-report")}
                   className="text-sm text-emerald-600 hover:text-emerald-800 flex items-center gap-1 font-medium"

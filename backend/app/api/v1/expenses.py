@@ -31,6 +31,9 @@ def _build_expense_response(expense: Expense, db: Session) -> ExpenseResponse:
         created_by=expense.created_by,
         created_at=expense.created_at,
         project_name=project_name,
+        approval_status=expense.approval_status,
+        approved_by=expense.approved_by,
+        approved_at=expense.approved_at,
     )
 
 
@@ -81,6 +84,17 @@ def create_expense(
         notes=data.notes,
         created_by=current_user.id if current_user else None,
     )
+
+    is_admin_or_gm = current_user and (
+        getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_superuser", False)
+        or getattr(current_user, "role", "") in ("admin", "gm")
+    )
+    if is_admin_or_gm:
+        from datetime import datetime
+        expense.approval_status = "approved"
+        expense.approved_by = current_user.id
+        expense.approved_at = datetime.now()
     db.add(expense)
     db.commit()
     db.refresh(expense)
@@ -144,3 +158,35 @@ def delete_expense(
     db.delete(expense)
     db.commit()
     return None
+
+@router.put("/{expense_id}/approve", response_model=ExpenseResponse)
+def approve_expense(
+    expense_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Approve pengeluaran (Hanya untuk GM/Admin)."""
+    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    is_admin_or_gm = (
+        getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_superuser", False)
+        or getattr(current_user, "role", "") in ("admin", "gm")
+    )
+    if not is_admin_or_gm:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin/GM access required to approve expenses",
+        )
+
+    if expense.approval_status != "approved":
+        from datetime import datetime
+        expense.approval_status = "approved"
+        expense.approved_by = current_user.id
+        expense.approved_at = datetime.now()
+        db.commit()
+        db.refresh(expense)
+
+    return _build_expense_response(expense, db)

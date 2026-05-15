@@ -31,5 +31,8 @@ class ExpenseResponse(ExpenseBase):
     created_by: Optional[int] = None
     created_at: datetime
     project_name: Optional[str] = None
+    approval_status: str
+    approved_by: Optional[int] = None
+    approved_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
