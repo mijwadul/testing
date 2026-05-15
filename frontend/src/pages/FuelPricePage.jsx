@@ -1,4 +1,4 @@
-import { API_URL } from "../../api/auth";
+import { API_URL } from "../api/auth";
 import React, { useState, useEffect } from 'react';
 import { Fuel, Save, History, AlertCircle, CheckCircle, Package, XCircle, Trash2, Info } from 'lucide-react';
 import { toast } from 'sonner';
