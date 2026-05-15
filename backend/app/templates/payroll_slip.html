@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="id">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Slip Gaji - {{ employee.name }}</title>
+        <style>
+            @page {
+                size: A4;
+                margin: 2cm 2cm 2.5cm 2cm;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 10pt;
+                color: #1a1a1a;
+                line-height: 1.4;
+            }
+
+            /* ===== KOP SURAT ===== */
+            .kop-wrapper {
+                border-bottom: 3px solid #1a3c6e;
+                padding-bottom: 10px;
+                margin-bottom: 14px;
+            }
+
+            .kop-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .kop-logo-cell {
+                width: 90px;
+                vertical-align: middle;
+                text-align: center;
+            }
+
+            .kop-logo-box {
+                width: 80px;
+                height: 80px;
+                border: 3px solid #1a3c6e;
+                border-radius: 8px;
+                background-color: #1a3c6e;
+                display: table;
+            }
+
+            .kop-logo-inner {
+                display: table-cell;
+                vertical-align: middle;
+                text-align: center;
+            }
+
+            .kop-logo-text {
+                font-size: 22pt;
+                font-weight: bold;
+                color: #ffffff;
+                letter-spacing: 1px;
+            }
+
+            .kop-logo-sub {
+                font-size: 7pt;
+                color: #c8d8f0;
+                letter-spacing: 0.5px;
+            }
+
+            .kop-info-cell {
+                vertical-align: middle;
+                padding-left: 14px;
+            }
+
+            .kop-company-name {
+                font-size: 16pt;
+                font-weight: bold;
+                color: #1a3c6e;
+                letter-spacing: 0.5px;
+            }
+
+            .kop-company-tagline {
+                font-size: 9pt;
+                color: #4a6fa5;
+                margin-top: 2px;
+                font-style: italic;
+            }
+
+            .kop-company-detail {
+                font-size: 8pt;
+                color: #555;
+                margin-top: 6px;
+            }
+
+            /* ===== JUDUL SLIP ===== */
+            .slip-title-wrapper {
+                text-align: center;
+                margin-bottom: 14px;
+            }
+
+            .slip-title {
+                font-size: 13pt;
+                font-weight: bold;
+                color: #1a3c6e;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                border-top: 1px solid #1a3c6e;
+                border-bottom: 1px solid #1a3c6e;
+                padding: 5px 0;
+                display: inline-block;
+                width: 100%;
+            }
+
+            .slip-period {
+                font-size: 9pt;
+                color: #555;
+                margin-top: 4px;
+            }
+
+            /* ===== INFO KARYAWAN ===== */
+            .info-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 14px;
+                background-color: #f0f4f9;
+                border-radius: 4px;
+            }
+
+            .info-table td {
+                padding: 5px 10px;
+                font-size: 9.5pt;
+                vertical-align: top;
+            }
+
+            .info-label {
+                color: #555;
+                width: 150px;
+                font-weight: normal;
+            }
+
+            .info-colon {
+                width: 10px;
+                color: #555;
+            }
+
+            .info-value {
+                font-weight: bold;
+                color: #1a1a1a;
+            }
+
+            /* ===== TABEL KEHADIRAN ===== */
+            .section-title {
+                font-size: 10pt;
+                font-weight: bold;
+                color: #ffffff;
+                background-color: #1a3c6e;
+                padding: 5px 10px;
+                margin-bottom: 0;
+            }
+
+            .attendance-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 12px;
+                font-size: 9.5pt;
+            }
+
+            .attendance-table th {
+                background-color: #2e5fa3;
+                color: #ffffff;
+                padding: 5px 10px;
+                text-align: center;
+                font-weight: bold;
+            }
+
+            .attendance-table td {
+                padding: 5px 10px;
+                text-align: center;
+                border: 1px solid #d0d8e8;
+            }
+
+            .attendance-table tr:nth-child(even) td {
+                background-color: #f0f4f9;
+            }
+
+            /* ===== TABEL GAJI ===== */
+            .salary-wrapper {
+                width: 100%;
+            }
+
+            .salary-section-table {
+                width: 48%;
+                border-collapse: collapse;
+                font-size: 9.5pt;
+                vertical-align: top;
+            }
+
+            .salary-section-table th {
+                padding: 5px 10px;
+                text-align: left;
+                font-weight: bold;
+            }
+
+            .salary-section-table td {
+                padding: 4px 10px;
+                border-bottom: 1px solid #e8edf5;
+            }
+
+            .salary-section-table .amount {
+                text-align: right;
+                white-space: nowrap;
+            }
+
+            .salary-header-income {
+                background-color: #27ae60;
+                color: #ffffff;
+            }
+
+            .salary-header-deduction {
+                background-color: #c0392b;
+                color: #ffffff;
+            }
+
+            .salary-total-row td {
+                border-top: 2px solid #333;
+                font-weight: bold;
+                background-color: #f0f4f9;
+            }
+
+            /* ===== GAJI BERSIH ===== */
+            .net-salary-wrapper {
+                margin-top: 12px;
+                margin-bottom: 16px;
+            }
+
+            .net-salary-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .net-salary-table td {
+                padding: 10px 16px;
+                background-color: #1a3c6e;
+                color: #ffffff;
+                font-size: 12pt;
+            }
+
+            .net-salary-label {
+                font-weight: bold;
+            }
+
+            .net-salary-amount {
+                text-align: right;
+                font-weight: bold;
+                font-size: 14pt;
+            }
+
+            /* ===== STATUS BADGE ===== */
+            .badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 8pt;
+                font-weight: bold;
+            }
+
+            .badge-pending {
+                background: #f0ad4e;
+                color: #fff;
+            }
+            .badge-approved {
+                background: #5cb85c;
+                color: #fff;
+            }
+            .badge-paid {
+                background: #5bc0de;
+                color: #fff;
+            }
+            .badge-cancelled {
+                background: #d9534f;
+                color: #fff;
+            }
+
+            /* ===== TANDA TANGAN ===== */
+            .signature-wrapper {
+                margin-top: 20px;
+            }
+
+            .signature-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .signature-table td {
+                width: 33%;
+                text-align: center;
+                padding: 0 10px;
+                vertical-align: top;
+            }
+
+            .signature-label {
+                font-size: 9pt;
+                color: #333;
+                margin-bottom: 60px;
+            }
+
+            .signature-line {
+                border-top: 1px solid #333;
+                margin-top: 60px;
+                padding-top: 4px;
+                font-size: 8.5pt;
+                color: #333;
+            }
+
+            /* ===== FOOTER ===== */
+            .doc-footer {
+                border-top: 1px dashed #aaa;
+                margin-top: 16px;
+                padding-top: 8px;
+                text-align: center;
+                font-size: 7.5pt;
+                color: #999;
+            }
+
+            /* Outer layout for income & deduction side by side */
+            .salary-outer-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            .salary-outer-table > tbody > tr > td {
+                vertical-align: top;
+                padding: 0;
+            }
+            .salary-outer-gap {
+                width: 4%;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- ============ KOP SURAT ============ -->
+        <div class="kop-wrapper">
+            <table class="kop-table">
+                <tbody>
+                    <tr>
+                        <td class="kop-logo-cell">
+                            <img
+                                src="logo.png"
+                                alt="Logo PT. Kusuma Samudera Berkah"
+                                style="
+                                    width: 85px;
+                                    height: 85px;
+                                    object-fit: contain;
+                                    display: block;
+                                    margin: 0 auto;
+                                "
+                            />
+                        </td>
+                        <td class="kop-info-cell">
+                            <div class="kop-company-name">
+                                PT. Kusuma Samudera Berkah
+                            </div>
+                            <div class="kop-company-tagline">
+                                Pertambangan &amp; Konstruksi
+                            </div>
+                            <div class="kop-company-detail">
+                                Jl. [Alamat Perusahaan], [Kota], [Provinsi]
+                                &nbsp;|&nbsp; Telp: [Nomor Telepon]
+                                &nbsp;|&nbsp; Email:
+                                info@kusumasamuderaberkah.co.id
+                            </div>
+                        </td>
+                        <td
+                            style="
+                                text-align: right;
+                                vertical-align: middle;
+                                width: 120px;
+                            "
+                        >
+                            <div style="font-size: 8pt; color: #555">
+                                No. Dokumen:
+                            </div>
+                            <div
+                                style="
+                                    font-size: 8pt;
+                                    font-weight: bold;
+                                    color: #1a3c6e;
+                                "
+                            >
+                                SG-{{ payroll.id }}/{{ payroll.period_start.year
+                                }}/{{ payroll.period_start.strftime('%m') }}
+                            </div>
+                            <div
+                                style="
+                                    font-size: 7.5pt;
+                                    color: #777;
+                                    margin-top: 4px;
+                                "
+                            >
+                                Dicetak: {{ generated_at | format_date_short }}
+                            </div>
+                            <div style="margin-top: 4px">
+                                {% if payroll.payment_status == 'approved' %}
+                                <span class="badge badge-approved"
+                                    >DISETUJUI</span
+                                >
+                                {% elif payroll.payment_status == 'paid' %}
+                                <span class="badge badge-paid">DIBAYAR</span>
+                                {% elif payroll.payment_status == 'pending' %}
+                                <span class="badge badge-pending"
+                                    >MENUNGGU</span
+                                >
+                                {% else %}
+                                <span class="badge badge-cancelled"
+                                    >DIBATALKAN</span
+                                >
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ============ JUDUL ============ -->
+        <div class="slip-title-wrapper">
+            <div class="slip-title">SLIP GAJI KARYAWAN</div>
+            <div class="slip-period">
+                Periode: {{ payroll.period_start | format_date }} &mdash; {{
+                payroll.period_end | format_date }}
+            </div>
+        </div>
+
+        <!-- ============ DATA KARYAWAN ============ -->
+        <table class="info-table">
+            <tbody>
+                <tr>
+                    <td
+                        style="
+                            width: 50%;
+                            vertical-align: top;
+                            padding: 8px 14px;
+                        "
+                    >
+                        <table style="width: 100%; border-collapse: collapse">
+                            <tr>
+                                <td class="info-label">Nama Karyawan</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">{{ employee.name }}</td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Kode Karyawan</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {{ employee.employee_code or '-' }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Jabatan</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {{ employee.position or '-' }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Departemen</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {{ employee.department or '-' }}
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td
+                        style="
+                            width: 50%;
+                            vertical-align: top;
+                            padding: 8px 14px;
+                            border-left: 1px solid #c8d8f0;
+                        "
+                    >
+                        <table style="width: 100%; border-collapse: collapse">
+                            <tr>
+                                <td class="info-label">Status Karyawan</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {{ employee.employment_type|capitalize if
+                                    employee.employment_type else '-' }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Bank / No. Rekening</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {% if employee.bank_name and
+                                    employee.bank_account_number %} {{
+                                    employee.bank_name }} / {{
+                                    employee.bank_account_number }} {% else %} -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Metode Pembayaran</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {{ payroll.payment_method|capitalize if
+                                    payroll.payment_method else 'Cash' }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Tanggal Bayar</td>
+                                <td class="info-colon">:</td>
+                                <td class="info-value">
+                                    {{ payroll.payment_date | format_date if
+                                    payroll.payment_date else '-' }}
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ============ REKAP KEHADIRAN ============ -->
+        <div class="section-title">&#128197; Rekap Kehadiran</div>
+        <table class="attendance-table">
+            <thead>
+                <tr>
+                    <th>Hari Kerja</th>
+                    <th>Hari Hadir</th>
+                    <th>Hari Tidak Hadir</th>
+                    <th>Jam Lembur</th>
+                    <th>Gaji Harian</th>
+                    <th>Rate Lembur / Jam</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ payroll.work_days }} hari</td>
+                    <td>{{ payroll.present_days }} hari</td>
+                    <td>{{ payroll.absent_days }} hari</td>
+                    <td>
+                        {{ "%.1f"|format(payroll.overtime_hours or 0) }} jam
+                    </td>
+                    <td>{{ employee.daily_salary | currency }}</td>
+                    <td>{{ employee.hourly_overtime_rate | currency }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ============ RINCIAN GAJI ============ -->
+        <div class="section-title" style="margin-bottom: 8px">
+            &#128181; Rincian Penghasilan &amp; Potongan
+        </div>
+        <table class="salary-outer-table">
+            <tbody>
+                <tr>
+                    <!-- Kolom Penghasilan -->
+                    <td style="width: 48%">
+                        <table class="salary-section-table" style="width: 100%">
+                            <thead>
+                                <tr class="salary-header-income">
+                                    <th>Penghasilan</th>
+                                    <th class="amount">Jumlah</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Gaji Pokok</td>
+                                    <td class="amount">
+                                        {{ payroll.basic_salary | currency }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        Lembur ({{
+                                        "%.1f"|format(payroll.overtime_hours or
+                                        0) }} jam)
+                                    </td>
+                                    <td class="amount">
+                                        {{ payroll.overtime_amount | currency }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Tunjangan</td>
+                                    <td class="amount">
+                                        {{ payroll.allowance | currency }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Bonus</td>
+                                    <td class="amount">
+                                        {{ payroll.bonus | currency }}
+                                    </td>
+                                </tr>
+                                <tr class="salary-total-row">
+                                    <td><strong>Total Penghasilan</strong></td>
+                                    <td class="amount">
+                                        <strong
+                                            >{{ payroll.total_income | currency
+                                            }}</strong
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </td>
+
+                    <!-- Gap -->
+                    <td class="salary-outer-gap"></td>
+
+                    <!-- Kolom Potongan -->
+                    <td style="width: 48%">
+                        <table class="salary-section-table" style="width: 100%">
+                            <thead>
+                                <tr class="salary-header-deduction">
+                                    <th>Potongan</th>
+                                    <th class="amount">Jumlah</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Potongan Pinjaman</td>
+                                    <td class="amount">
+                                        {{ payroll.loan_deduction | currency }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Potongan Hutang</td>
+                                    <td class="amount">
+                                        {{ payroll.debt_deduction | currency }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Potongan Lainnya</td>
+                                    <td class="amount">
+                                        {{ payroll.other_deduction | currency }}
+                                    </td>
+                                </tr>
+                                {% if payroll.deduction_note %}
+                                <tr>
+                                    <td
+                                        colspan="2"
+                                        style="
+                                            font-size: 8pt;
+                                            color: #888;
+                                            font-style: italic;
+                                        "
+                                    >
+                                        Ket: {{ payroll.deduction_note }}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                <tr class="salary-total-row">
+                                    <td><strong>Total Potongan</strong></td>
+                                    <td class="amount">
+                                        <strong
+                                            >{{ payroll.total_deduction |
+                                            currency }}</strong
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ============ GAJI BERSIH ============ -->
+        <div class="net-salary-wrapper">
+            <table class="net-salary-table">
+                <tbody>
+                    <tr>
+                        <td class="net-salary-label">
+                            GAJI BERSIH (Take Home Pay)
+                        </td>
+                        <td class="net-salary-amount">
+                            {{ payroll.net_salary | currency }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        {% if payroll.notes %}
+        <div
+            style="
+                font-size: 8.5pt;
+                color: #555;
+                margin-bottom: 14px;
+                padding: 6px 10px;
+                background: #fffbe6;
+                border-left: 3px solid #f0ad4e;
+            "
+        >
+            <strong>Catatan:</strong> {{ payroll.notes }}
+        </div>
+        {% endif %}
+
+        <!-- ============ TANDA TANGAN ============ -->
+        <div class="signature-wrapper">
+            <table class="signature-table">
+                <tbody>
+                    <tr>
+                        <td>
+                            <div class="signature-label">Dibuat oleh,</div>
+                            <div class="signature-line">
+                                <strong>Finance / HRD</strong>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="signature-label">Disetujui oleh,</div>
+                            <div class="signature-line">
+                                <strong>General Manager</strong>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="signature-label">Diterima oleh,</div>
+                            <div class="signature-line">
+                                <strong>{{ employee.name }}</strong>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ============ FOOTER ============ -->
+        <div class="doc-footer">
+            Dokumen ini dicetak secara otomatis oleh sistem PT. Kusuma Samudera
+            Berkah &bull; {{ generated_at | format_date }} &bull; Dokumen ini
+            sah tanpa tanda tangan basah apabila telah disetujui secara digital.
+        </div>
+    </body>
+</html>

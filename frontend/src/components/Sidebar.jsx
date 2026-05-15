@@ -22,6 +22,7 @@ import {
   TrendingUp,
   DollarSign,
   Briefcase,
+  FileText,
 } from "lucide-react";
 
 const Sidebar = ({ children }) => {
@@ -149,6 +150,12 @@ const Sidebar = ({ children }) => {
           icon: Calendar,
           label: "Absensi Karyawan",
           show: true,
+        },
+        {
+          path: "/payroll",
+          icon: FileText,
+          label: "Payroll & Slip Gaji",
+          show: isFinance,
         },
       ].filter((sub) => sub.show);
 

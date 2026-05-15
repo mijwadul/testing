@@ -1,343 +1,373 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer,
 } from "recharts";
-import { Truck, Users, FolderOpen, Fuel, Gauge } from "lucide-react";
+import {
+  Truck, Users, FolderOpen, Fuel, Gauge,
+  FileText, Clock, CheckCircle, DollarSign,
+  AlertTriangle, ChevronRight, RefreshCw, Loader2,
+  TrendingUp, Wallet,
+} from "lucide-react";
 import { API_URL } from "../api/auth";
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const formatIDR = (v) =>
+  Number(v ?? 0).toLocaleString("id-ID", {
+    style: "currency", currency: "IDR", minimumFractionDigits: 0,
+  });
+
+const formatDate = (d) => {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("id-ID", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+};
+
+// ─── Mini stat card ───────────────────────────────────────────────────────────
+const StatCard = ({ icon: Icon, label, value, sub, color, onClick, badge }) => (
+  <div
+    onClick={onClick}
+    className={`bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start gap-4 
+      ${onClick ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all" : ""}`}
+  >
+    <div className={`p-3 rounded-xl ${color}`}>
+      <Icon className="w-6 h-6 text-white" />
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm text-gray-500 font-medium truncate">{label}</p>
+      <p className="text-2xl font-bold text-gray-800 mt-0.5">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    </div>
+    {badge && (
+      <span className="shrink-0 bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+        {badge}
+      </span>
+    )}
+  </div>
+);
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    equipment_count: 0,
-    employee_count: 0,
-    project_count: 0,
-  });
-  const [fuelStats, setFuelStats] = useState({
-    total_fuel_consumed: 0,
-    equipment_count: 0,
-  });
-  const [fuelEquipmentReport, setFuelEquipmentReport] = useState([]);
-  const [equipment, setEquipment] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [projects, setProjects] = useState([]);
 
-  useEffect(() => {
-    fetchStats();
-    fetchEquipment();
-    fetchEmployees();
-    fetchProjects();
-    fetchFuelStats();
-    fetchFuelEquipmentReport();
-  }, []);
+  // ── state ──
+  const [currentUser, setCurrentUser]           = useState(null);
+  const [stats, setStats]                       = useState({ equipment_count: 0, employee_count: 0, project_count: 0 });
+  const [payrollSummary, setPayrollSummary]     = useState(null);
+  const [fuelStats, setFuelStats]               = useState({ total_fuel_consumed: 0, equipment_count: 0 });
+  const [fuelEquipmentReport, setFuelEquipmentReport] = useState([]);
+  const [equipment, setEquipment]               = useState([]);
+  const [employees, setEmployees]               = useState([]);
+  const [projects, setProjects]                 = useState([]);
+  const [loadingPayroll, setLoadingPayroll]     = useState(true);
+  const [approvingId, setApprovingId]           = useState(null);
 
   const getToken = () => localStorage.getItem("token");
 
-  const fetchStats = async () => {
+  const authFetch = useCallback(async (url) => {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (res.status === 401) { localStorage.removeItem("token"); navigate("/login"); }
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }, [navigate]);
+
+  // ── fetch current user ──
+  useEffect(() => {
+    authFetch(`${API_URL}/auth/me`)
+      .then(data => setCurrentUser(data.user ?? data))
+      .catch(() => {});
+  }, [authFetch]);
+
+  // ── fetch all dashboard data ──
+  const fetchAll = useCallback(async () => {
+    setLoadingPayroll(true);
     try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/dashboard/stats`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const [s, pe, fe, fr, eq, emp, proj] = await Promise.allSettled([
+        authFetch(`${API_URL}/dashboard/stats`),
+        authFetch(`${API_URL}/dashboard/payroll-summary`),
+        authFetch(`${API_URL}/fuel/efficiency?days=30`),
+        authFetch(`${API_URL}/fuel/equipment-report?days=30`),
+        authFetch(`${API_URL}/dashboard/equipment`),
+        authFetch(`${API_URL}/dashboard/employees`),
+        authFetch(`${API_URL}/dashboard/projects`),
+      ]);
+      if (s.status  === "fulfilled") setStats(s.value);
+      if (pe.status === "fulfilled") setPayrollSummary(pe.value);
+      if (fe.status === "fulfilled") setFuelStats(fe.value);
+      if (fr.status === "fulfilled") setFuelEquipmentReport(fr.value);
+      if (eq.status === "fulfilled") setEquipment(eq.value);
+      if (emp.status=== "fulfilled") setEmployees(emp.value);
+      if (proj.status==="fulfilled") setProjects(proj.value);
+    } finally {
+      setLoadingPayroll(false);
+    }
+  }, [authFetch]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── role ──
+  const role   = currentUser?.role ?? "";
+  const isGM   = role === "gm" || role === "direktur" || currentUser?.is_admin || currentUser?.is_superuser;
+  const canSeePayroll = ["gm", "finance", "admin", "checker", "direktur"].includes(role)
+    || currentUser?.is_admin || currentUser?.is_superuser;
+
+  // ── approve payroll ──
+  const handleApprove = async (payrollId) => {
+    if (!window.confirm("Approve slip gaji ini?")) return;
+    setApprovingId(payrollId);
+    try {
+      await fetch(`${API_URL}/employees/payroll/${payrollId}/approve`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } catch (error) {
-      console.error("Error fetching stats:", error);
+      await fetchAll();
+    } catch {
+      alert("Gagal approve payroll");
+    } finally {
+      setApprovingId(null);
     }
   };
 
-  const fetchEquipment = async () => {
-    try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/dashboard/equipment`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setEquipment(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } catch (error) {
-      console.error("Error fetching equipment:", error);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/dashboard/employees`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setEmployees(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    }
-  };
-
-  const fetchProjects = async () => {
-    try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/dashboard/projects`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } catch (error) {
-      console.error("Error fetching projects:", error);
-    }
-  };
-
-  const fetchFuelStats = async () => {
-    try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/fuel/efficiency?days=30`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setFuelStats(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } catch (error) {
-      console.error("Error fetching fuel stats:", error);
-    }
-  };
-
-  const fetchFuelEquipmentReport = async () => {
-    try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/fuel/equipment-report?days=30`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setFuelEquipmentReport(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    } catch (error) {
-      console.error("Error fetching fuel equipment report:", error);
-    }
-  };
-
-  const fuelChartData = useMemo(() => {
-    return fuelEquipmentReport
+  // ── chart data ──
+  const fuelChartData = useMemo(() =>
+    fuelEquipmentReport
       .slice()
       .sort((a, b) => b.total_liters - a.total_liters)
       .slice(0, 14)
-      .map((r) => ({
-        name:
-          r.equipment_name.length > 14
-            ? `${r.equipment_name.slice(0, 13)}…`
-            : r.equipment_name,
+      .map(r => ({
+        name: r.equipment_name.length > 14 ? `${r.equipment_name.slice(0, 13)}…` : r.equipment_name,
         liters: r.total_liters,
         fullName: r.equipment_name,
-      }));
-  }, [fuelEquipmentReport]);
+      })),
+  [fuelEquipmentReport]);
 
   const projectData = useMemo(() => {
     const counts = { ongoing: 0, completed: 0, paused: 0 };
-    projects.forEach((p) => {
+    projects.forEach(p => {
       const s = (p.status || "ongoing").toLowerCase();
-      if (s in counts) counts[s]++;
-      else counts.ongoing++;
+      if (s in counts) counts[s]++; else counts.ongoing++;
     });
     return [
-      { name: "Ongoing", value: counts.ongoing, color: "#0088FE" },
-      { name: "Completed", value: counts.completed, color: "#00C49F" },
-      { name: "Paused", value: counts.paused, color: "#FFBB28" },
+      { name: "Ongoing",   value: counts.ongoing,   color: "#3b82f6" },
+      { name: "Completed", value: counts.completed, color: "#10b981" },
+      { name: "Paused",    value: counts.paused,    color: "#f59e0b" },
     ];
   }, [projects]);
 
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">
-        Dashboard PT. Kusuma Samudera Berkah
-      </h1>
+  const ps = payrollSummary;
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <Truck className="h-8 w-8 text-blue-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Equipment</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.equipment_count}
-              </p>
-            </div>
-          </div>
+  return (
+    <div className="space-y-6">
+      {/* ── Page Header ───────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Dashboard
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">PT. Kusuma Samudera Berkah – Ringkasan Operasional</p>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <Users className="h-8 w-8 text-green-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Employees</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.employee_count}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <FolderOpen className="h-8 w-8 text-purple-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Projects</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.project_count}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div
-          className="bg-white p-6 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate("/fuel")}
-          title="Detail BBM dan riwayat isi tangki"
+        <button
+          onClick={fetchAll}
+          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+          title="Refresh data"
         >
-          <div className="flex items-center">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <Gauge className="h-6 w-6 text-amber-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">
-                Total BBM (30 hari)
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {fuelStats.total_fuel_consumed.toFixed(1)}{" "}
-                <span className="text-sm font-normal text-gray-500">Liter</span>
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Total pengisian BBM tercatat
-              </p>
-            </div>
-          </div>
-        </div>
+          <RefreshCw className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
-            <div>
-              <h2 className="text-xl font-semibold">
-                Total Penggunaan BBM (per alat)
-              </h2>
-              <p className="text-sm text-gray-500 mt-1 max-w-xl">
-                Total liter BBM yang diisi per unit dalam 30 hari terakhir. Data
-                diambil dari menu{" "}
-                <button
-                  type="button"
-                  className="text-amber-700 underline font-medium hover:text-amber-900"
-                  onClick={() => navigate("/fuel")}
-                >
-                  Logistik BBM
-                </button>
-                .
-              </p>
+      {/* ── Core Stats ────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          icon={Truck}  label="Total Equipment"
+          value={stats.equipment_count}
+          color="bg-blue-500"
+          onClick={() => navigate("/equipment")}
+        />
+        <StatCard
+          icon={Users}  label="Karyawan Aktif"
+          value={stats.employee_count}
+          color="bg-emerald-500"
+          onClick={() => navigate("/employees")}
+        />
+        <StatCard
+          icon={FolderOpen} label="Total Proyek"
+          value={stats.project_count}
+          color="bg-purple-500"
+        />
+        <StatCard
+          icon={Gauge} label="BBM 30 Hari"
+          value={`${fuelStats.total_fuel_consumed.toFixed(1)} L`}
+          sub={`${fuelStats.equipment_count} unit`}
+          color="bg-amber-500"
+          onClick={() => navigate("/fuel")}
+        />
+      </div>
+
+      {/* ── Payroll Overview (role-gated) ─────────────────────────────────── */}
+      {canSeePayroll && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              Payroll Overview
+            </h2>
+            <button
+              onClick={() => navigate("/payroll")}
+              className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium"
+            >
+              Lihat Semua <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {loadingPayroll ? (
+            <div className="flex items-center gap-2 text-gray-400 py-4">
+              <Loader2 className="w-5 h-5 animate-spin" /> Memuat data payroll…
             </div>
+          ) : (
+            <>
+              {/* Payroll stat cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <StatCard
+                  icon={Clock}
+                  label="Menunggu Approval"
+                  value={ps?.pending_count ?? 0}
+                  sub={`Nilai: ${formatIDR(ps?.pending_total ?? 0)}`}
+                  color="bg-amber-500"
+                  badge={ps?.pending_count > 0 ? ps.pending_count : undefined}
+                  onClick={() => navigate("/payroll")}
+                />
+                <StatCard
+                  icon={CheckCircle}
+                  label={`Approved (${ps?.month_label ?? "Bulan Ini"})`}
+                  value={ps?.approved_count ?? 0}
+                  sub={`Total: ${formatIDR(ps?.approved_total ?? 0)}`}
+                  color="bg-green-500"
+                  onClick={() => navigate("/payroll")}
+                />
+                <StatCard
+                  icon={Wallet}
+                  label={`Dibayar (${ps?.month_label ?? "Bulan Ini"})`}
+                  value={ps?.paid_count ?? 0}
+                  sub={`Total: ${formatIDR(ps?.paid_total ?? 0)}`}
+                  color="bg-blue-600"
+                  onClick={() => navigate("/payroll")}
+                />
+              </div>
+
+              {/* Pending approval quick-action list (GM only) */}
+              {isGM && ps?.recent_pending?.length > 0 && (
+                <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 border-b border-amber-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-semibold text-amber-800">
+                      {ps.pending_count} Slip Gaji Menunggu Approval GM
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {ps.recent_pending.map(rec => (
+                      <div key={rec.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{rec.employee_name}</p>
+                          <p className="text-xs text-gray-400">
+                            {formatDate(rec.period_start)} – {formatDate(rec.period_end)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-gray-700">
+                            {formatIDR(rec.net_salary)}
+                          </span>
+                          <button
+                            onClick={() => handleApprove(rec.id)}
+                            disabled={approvingId === rec.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-60"
+                          >
+                            {approvingId === rec.id
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <CheckCircle className="w-3.5 h-3.5" />
+                            }
+                            Approve
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {ps.pending_count > 5 && (
+                    <div className="px-5 py-2 bg-gray-50 border-t border-gray-100">
+                      <button
+                        onClick={() => navigate("/payroll")}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        + {ps.pending_count - 5} lainnya → Lihat semua di Payroll
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* No pending – show success banner */}
+              {isGM && ps?.pending_count === 0 && (
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                  <p className="text-sm text-green-800 font-medium">
+                    Semua slip gaji sudah diapprove. Tidak ada yang menunggu.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Charts ────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Fuel chart */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-gray-800">
+              Penggunaan BBM per Alat (30 hari)
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">Total liter BBM yang diisi per unit</p>
           </div>
           {fuelChartData.length === 0 ? (
-            <p className="text-gray-500 text-sm py-8">
-              Belum ada data pengisian BBM dalam 30 hari terakhir.
+            <p className="text-gray-400 text-sm py-10 text-center">
+              Belum ada data BBM dalam 30 hari terakhir.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart
-                data={fuelChartData}
-                margin={{ top: 8, right: 16, bottom: 40, left: 8 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="name"
-                  angle={-28}
-                  textAnchor="end"
-                  height={60}
-                  interval={0}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis />
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={fuelChartData} margin={{ top: 8, right: 8, bottom: 40, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis dataKey="name" angle={-28} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip
-                  formatter={(value, _n, props) => [
-                    `${Number(value).toFixed(1)} L`,
-                    "Total BBM",
-                  ]}
-                  labelFormatter={(label, payload) =>
-                    payload?.[0]?.payload?.fullName || label
-                  }
+                  formatter={(v) => [`${Number(v).toFixed(1)} L`, "Total BBM"]}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""}
                 />
-                <Legend />
-                <Bar
-                  dataKey="liters"
-                  name="Total Liter BBM"
-                  fill="#d97706"
-                  radius={[4, 4, 0, 0]}
-                />
+                <Bar dataKey="liters" name="Liter" fill="#d97706" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Project Status</h2>
-          <ResponsiveContainer width="100%" height={320}>
+
+        {/* Project status pie */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-gray-800">Status Proyek</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Distribusi status proyek aktif</p>
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
-                data={projectData}
-                cx="50%"
-                cy="50%"
+                data={projectData} cx="50%" cy="50%"
+                outerRadius={100} fill="#8884d8" dataKey="value"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 labelLine={false}
-                label={({ name, percent }) =>
-                  `${name} ${(percent * 100).toFixed(0)}%`
-                }
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
               >
-                {projectData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {projectData.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip />
@@ -346,147 +376,126 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Pemantauan BBM vs jam kerja */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <Fuel className="h-7 w-7 text-amber-600 shrink-0" />
+      {/* ── BBM Table ─────────────────────────────────────────────────────── */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-4">
+          <Fuel className="h-5 w-5 text-amber-600" />
           <div>
-            <h2 className="text-xl font-semibold">
-              Ringkasan BBM & jam kerja (30 hari)
-            </h2>
-            <p className="text-sm text-gray-500">
-              Per unit yang punya pengisian BBM dan/atau jam kerja di periode
-              ini; unit tanpa data tidak dicantumkan.
-            </p>
+            <h2 className="text-base font-semibold text-gray-800">Ringkasan BBM (30 hari)</h2>
+            <p className="text-xs text-gray-400">Per unit yang punya pengisian BBM</p>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full table-auto text-sm">
+          <table className="min-w-full text-sm divide-y divide-gray-100">
             <thead>
               <tr className="bg-gray-50 text-left">
-                <th className="px-4 py-2 font-medium text-gray-600">Alat</th>
-                <th className="px-4 py-2 font-medium text-gray-600">Tipe</th>
-                <th className="px-4 py-2 font-medium text-gray-600 text-right">
-                  Total BBM (L)
-                </th>
-                <th className="px-4 py-2 font-medium text-gray-600 text-right">
-                  Kali isi
-                </th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase">Alat</th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase">Tipe</th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase text-right">Total BBM (L)</th>
+                <th className="px-4 py-2 font-medium text-gray-600 text-xs uppercase text-right">Kali Isi</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-50">
               {fuelEquipmentReport.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-8 text-center text-gray-500"
-                  >
+                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                     Belum ada aktivitas BBM dalam periode ini.
                   </td>
                 </tr>
               ) : (
-                fuelEquipmentReport.map((row) => {
-                  const needsWorkHours =
-                    row.total_liters > 0 && row.total_work_hours <= 0;
-                  return (
-                    <tr
-                      key={row.equipment_id}
-                      className={`border-t ${needsWorkHours ? "bg-amber-50" : ""}`}
-                    >
-                      <td className="px-4 py-2 font-medium text-gray-900">
-                        <div className="flex items-center gap-2">
-                          {row.equipment_name}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-gray-600">
-                        {row.equipment_type}
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums font-medium text-amber-800">
-                        {row.total_liters.toFixed(1)}
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">
-                        {row.refuel_count}
-                      </td>
-                    </tr>
-                  );
-                })
+                fuelEquipmentReport.map(row => (
+                  <tr key={row.equipment_id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-2 font-medium text-gray-900">{row.equipment_name}</td>
+                    <td className="px-4 py-2 text-gray-500">{row.equipment_type}</td>
+                    <td className="px-4 py-2 text-right font-semibold text-amber-700 tabular-nums">
+                      {row.total_liters.toFixed(1)}
+                    </td>
+                    <td className="px-4 py-2 text-right text-gray-600 tabular-nums">{row.refuel_count}</td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-500 mt-3">
-          Total armada (periode): {fuelStats.total_fuel_consumed.toFixed(1)} L
-          solar · {fuelStats.equipment_count} unit tercatat pengisian BBM.
-        </p>
       </div>
 
-      {/* Tables */}
+      {/* ── Equipment + Employee tables ────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Equipment List</h2>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Truck className="w-4 h-4 text-blue-500" /> Equipment
+          </h2>
           <div className="overflow-x-auto">
-            <table className="min-w-full table-auto">
+            <table className="min-w-full text-sm divide-y divide-gray-100">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left">Name</th>
-                  <th className="px-4 py-2 text-left">Type</th>
-                  <th className="px-4 py-2 text-left">Location</th>
-                  <th className="px-4 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 </tr>
               </thead>
-              <tbody>
-                {equipment.map((eq) => (
-                  <tr key={eq.id} className="border-t">
-                    <td className="px-4 py-2">{eq.name}</td>
-                    <td className="px-4 py-2">{eq.type}</td>
-                    <td className="px-4 py-2">{eq.location}</td>
-                    <td className="px-4 py-2">{eq.status}</td>
+              <tbody className="divide-y divide-gray-50">
+                {equipment.slice(0, 8).map(eq => (
+                  <tr key={eq.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 font-medium text-gray-800">{eq.name}</td>
+                    <td className="px-3 py-2 text-gray-500">{eq.type}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        eq.status === "active" ? "bg-green-100 text-green-700"
+                        : eq.status === "maintenance" ? "bg-amber-100 text-amber-700"
+                        : "bg-gray-100 text-gray-600"
+                      }`}>{eq.status}</span>
+                    </td>
                   </tr>
                 ))}
+                {equipment.length === 0 && (
+                  <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-400">Tidak ada data</td></tr>
+                )}
               </tbody>
             </table>
           </div>
+          {equipment.length > 8 && (
+            <p className="text-xs text-gray-400 mt-2 text-right">+ {equipment.length - 8} lainnya</p>
+          )}
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Employee List</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left">Name</th>
-                  <th className="px-4 py-2 text-left">Position</th>
-                  <th className="px-4 py-2 text-left">Department</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp) => (
-                  <tr key={emp.id} className="border-t">
-                    <td className="px-4 py-2">{emp.name}</td>
-                    <td className="px-4 py-2">{emp.position}</td>
-                    <td className="px-4 py-2">{emp.department}</td>
-                    <td className="px-4 py-2">{emp.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
 
-      {/* Projects Placeholder */}
-      <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4">Projects (Placeholder)</h2>
-        <p className="text-gray-600">
-          Monitoring proyek akan ditambahkan nanti.
-        </p>
-        <ul className="list-disc list-inside mt-2">
-          {projects.map((proj) => (
-            <li key={proj.id}>
-              {proj.name} - {proj.status} ({proj.progress}%)
-            </li>
-          ))}
-        </ul>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-500" /> Karyawan
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm divide-y divide-gray-100">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jabatan</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {employees.slice(0, 8).map(emp => (
+                  <tr key={emp.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 font-medium text-gray-800">{emp.name}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">{emp.position}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        emp.status === "active" ? "bg-green-100 text-green-700"
+                        : emp.status === "on_leave" ? "bg-blue-100 text-blue-700"
+                        : "bg-gray-100 text-gray-600"
+                      }`}>{emp.status ?? "-"}</span>
+                    </td>
+                  </tr>
+                ))}
+                {employees.length === 0 && (
+                  <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-400">Tidak ada data</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {employees.length > 8 && (
+            <p className="text-xs text-gray-400 mt-2 text-right">+ {employees.length - 8} lainnya</p>
+          )}
+        </div>
       </div>
     </div>
   );

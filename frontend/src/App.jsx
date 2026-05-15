@@ -1,21 +1,28 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { Toaster } from 'sonner';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import EquipmentPage from './pages/EquipmentPage';
-import EmployeesPage from './pages/EmployeesPage';
-import ProjectsPage from './pages/ProjectsPage';
-import FuelPage from './pages/FuelPage';
-import WorkLogsPage from './pages/WorkLogsPage';
-import UsersPage from './pages/UsersPage';
-import AttendancePage from './pages/AttendancePage';
-import MaterialSalesPage from './pages/MaterialSalesPage';
-import IncomePage from './pages/IncomePage';
-import FinancePage from './pages/FinancePage';
-import FuelPricePage from './pages/FuelPricePage';
-import RentalRatesPage from './pages/RentalRatesPage';
-import Sidebar from './components/Sidebar';
-import ProtectedRoute from './components/ProtectedRoute';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+} from "react-router-dom";
+import { Toaster } from "sonner";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import EquipmentPage from "./pages/EquipmentPage";
+import EmployeesPage from "./pages/EmployeesPage";
+import ProjectsPage from "./pages/ProjectsPage";
+import FuelPage from "./pages/FuelPage";
+import WorkLogsPage from "./pages/WorkLogsPage";
+import UsersPage from "./pages/UsersPage";
+import AttendancePage from "./pages/AttendancePage";
+import MaterialSalesPage from "./pages/MaterialSalesPage";
+import IncomePage from "./pages/IncomePage";
+import FinancePage from "./pages/FinancePage";
+import FuelPricePage from "./pages/FuelPricePage";
+import RentalRatesPage from "./pages/RentalRatesPage";
+import PayrollPage from "./pages/PayrollPage";
+import Sidebar from "./components/Sidebar";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 // Layout dengan Sidebar untuk halaman yang memerlukan autentikasi
 const MainLayout = () => {
@@ -32,7 +39,13 @@ function App() {
       <Toaster />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+        <Route
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/equipment" element={<EquipmentPage />} />
           <Route path="/fuel" element={<FuelPage />} />
@@ -46,6 +59,7 @@ function App() {
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/fuel-price" element={<FuelPricePage />} />
           <Route path="/finance/rental-rates" element={<RentalRatesPage />} />
+          <Route path="/payroll" element={<PayrollPage />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>

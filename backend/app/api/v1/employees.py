@@ -11,9 +11,13 @@ Role Access:
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import status as http_status
 from sqlalchemy import and_, between, func
 from sqlalchemy.orm import Session
+
+# Import pdf service at module level to avoid stale cache on hot-reload
+from ...services.pdf_service import generate_payroll_pdf
 
 from ...core.auth import get_current_user, require_admin, require_role
 from ...core.database import get_db
@@ -120,14 +124,22 @@ def calculate_payroll(
     if loan_deduction is not None:
         actual_loan_deduction = min(loan_deduction, employee.loan_balance or 0)
     else:
-        total_deduction_setting = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
-            EmployeeLoan.employee_id == employee.id,
-            EmployeeLoan.is_active == True
-        ).scalar() or 0
-        total_balance = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
-            EmployeeLoan.employee_id == employee.id,
-            EmployeeLoan.is_active == True
-        ).scalar() or 0
+        total_deduction_setting = (
+            db.query(func.sum(EmployeeLoan.deduction_per_period))
+            .filter(
+                EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True
+            )
+            .scalar()
+            or 0
+        )
+        total_balance = (
+            db.query(func.sum(EmployeeLoan.remaining_balance))
+            .filter(
+                EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True
+            )
+            .scalar()
+            or 0
+        )
         actual_loan_deduction = min(total_deduction_setting, total_balance)
 
     debt_deduction = min(employee.debt_to_company or 0, employee.debt_to_company or 0)
@@ -202,14 +214,19 @@ def get_employees(
     employee_ids = [emp.id for emp in employees]
     loan_map = {}
     if check_finance_access(current_user) and employee_ids:
-        loan_stats = db.query(
-            EmployeeLoan.employee_id,
-            func.sum(EmployeeLoan.remaining_balance).label("total_balance"),
-            func.sum(EmployeeLoan.deduction_per_period).label("total_deduction")
-        ).filter(
-            EmployeeLoan.employee_id.in_(employee_ids),
-            EmployeeLoan.is_active == True
-        ).group_by(EmployeeLoan.employee_id).all()
+        loan_stats = (
+            db.query(
+                EmployeeLoan.employee_id,
+                func.sum(EmployeeLoan.remaining_balance).label("total_balance"),
+                func.sum(EmployeeLoan.deduction_per_period).label("total_deduction"),
+            )
+            .filter(
+                EmployeeLoan.employee_id.in_(employee_ids),
+                EmployeeLoan.is_active == True,
+            )
+            .group_by(EmployeeLoan.employee_id)
+            .all()
+        )
         for stat in loan_stats:
             loan_map[stat.employee_id] = stat
 
@@ -504,7 +521,7 @@ def get_payroll_records(
     employee_id: Optional[int] = None,
     period_start: Optional[date] = None,
     period_end: Optional[date] = None,
-    status: Optional[str] = None,
+    payment_status: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -515,7 +532,7 @@ def get_payroll_records(
     """
     if not check_finance_access(current_user):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Only Finance/GM can view payroll",
         )
 
@@ -530,8 +547,8 @@ def get_payroll_records(
                 PayrollRecord.period_end <= period_end,
             )
         )
-    if status:
-        query = query.filter(PayrollRecord.payment_status == status)
+    if payment_status:
+        query = query.filter(PayrollRecord.payment_status == payment_status)
 
     records = query.order_by(PayrollRecord.period_start.desc()).all()
 
@@ -835,14 +852,18 @@ def create_loan(
     db.commit()
 
     # Recalculate employee loan_balance and deduction
-    total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
-        EmployeeLoan.employee_id == employee.id,
-        EmployeeLoan.is_active == True
-    ).scalar() or 0
-    total_deduction = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
-        EmployeeLoan.employee_id == employee.id,
-        EmployeeLoan.is_active == True
-    ).scalar() or 0
+    total_loan = (
+        db.query(func.sum(EmployeeLoan.remaining_balance))
+        .filter(EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True)
+        .scalar()
+        or 0
+    )
+    total_deduction = (
+        db.query(func.sum(EmployeeLoan.deduction_per_period))
+        .filter(EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True)
+        .scalar()
+        or 0
+    )
     employee.loan_balance = total_loan
     employee.loan_deduction_per_period = total_deduction
     db.commit()
@@ -940,24 +961,32 @@ def update_loan(
         setattr(loan, key, value)
 
     # Recalculate if remaining_balance was modified
-    if 'nominal' in update_data and 'remaining_balance' not in update_data:
+    if "nominal" in update_data and "remaining_balance" not in update_data:
         # Just an assumption that if nominal changes and not remaining_balance, we should probably update remaining_balance too.
         # Let's keep it simple and just do what the frontend sends.
         pass
 
     db.commit()
-    
+
     # Recalculate employee loan_balance and deduction
     employee = db.query(Employee).filter(Employee.id == loan.employee_id).first()
     if employee:
-        total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
-            EmployeeLoan.employee_id == employee.id,
-            EmployeeLoan.is_active == True
-        ).scalar() or 0
-        total_deduction = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
-            EmployeeLoan.employee_id == employee.id,
-            EmployeeLoan.is_active == True
-        ).scalar() or 0
+        total_loan = (
+            db.query(func.sum(EmployeeLoan.remaining_balance))
+            .filter(
+                EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True
+            )
+            .scalar()
+            or 0
+        )
+        total_deduction = (
+            db.query(func.sum(EmployeeLoan.deduction_per_period))
+            .filter(
+                EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True
+            )
+            .scalar()
+            or 0
+        )
         employee.loan_balance = total_loan
         employee.loan_deduction_per_period = total_deduction
         db.commit()
@@ -993,16 +1022,103 @@ def delete_loan(
     db.commit()
 
     if employee:
-        total_loan = db.query(func.sum(EmployeeLoan.remaining_balance)).filter(
-            EmployeeLoan.employee_id == employee.id,
-            EmployeeLoan.is_active == True
-        ).scalar() or 0
-        total_deduction = db.query(func.sum(EmployeeLoan.deduction_per_period)).filter(
-            EmployeeLoan.employee_id == employee.id,
-            EmployeeLoan.is_active == True
-        ).scalar() or 0
+        total_loan = (
+            db.query(func.sum(EmployeeLoan.remaining_balance))
+            .filter(
+                EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True
+            )
+            .scalar()
+            or 0
+        )
+        total_deduction = (
+            db.query(func.sum(EmployeeLoan.deduction_per_period))
+            .filter(
+                EmployeeLoan.employee_id == employee.id, EmployeeLoan.is_active == True
+            )
+            .scalar()
+            or 0
+        )
         employee.loan_balance = total_loan
         employee.loan_deduction_per_period = total_deduction
         db.commit()
 
     return {"message": "Loan deleted successfully"}
+
+
+# ===== PDF GENERATION =====
+@router.get("/payroll/{payroll_id}/pdf")
+def download_payroll_pdf(
+    payroll_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate dan download slip gaji dalam format PDF.
+    - Finance/GM dapat mengunduh slip gaji karyawan manapun
+    """
+    if not check_finance_access(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only Finance/GM can download payroll PDF",
+        )
+
+    record = db.query(PayrollRecord).filter(PayrollRecord.id == payroll_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Payroll record not found")
+
+    employee = record.employee
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    payroll_data = {
+        "employee": employee,
+        "payroll": record,
+        "generated_at": datetime.now(),
+    }
+
+    try:
+        pdf_bytes = generate_payroll_pdf(payroll_data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Gagal generate PDF: {str(e)}")
+
+    from fastapi.responses import Response as FastAPIResponse
+
+    safe_name = (employee.name or "karyawan").replace(" ", "_")
+    filename = f"slip_gaji_{safe_name}_{record.period_start}_{record.period_end}.pdf"
+
+    return FastAPIResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+# ===== DELETE PAYROLL =====
+@router.delete("/payroll/{payroll_id}")
+def delete_payroll(
+    payroll_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Hapus record payroll.
+    - Hanya GM/Admin yang bisa menghapus
+    - Record dengan status 'paid' tidak bisa dihapus
+    """
+    record = db.query(PayrollRecord).filter(PayrollRecord.id == payroll_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Payroll record not found")
+
+    if record.payment_status == "paid":
+        raise HTTPException(
+            status_code=400,
+            detail="Slip gaji dengan status 'paid' tidak dapat dihapus. Hubungi superadmin.",
+        )
+
+    db.delete(record)
+    db.commit()
+    return {"message": "Payroll record berhasil dihapus", "id": payroll_id}
