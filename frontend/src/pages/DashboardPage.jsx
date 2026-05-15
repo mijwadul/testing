@@ -32,7 +32,11 @@ import {
   TrendingDown,
   BarChart2,
   PlusCircle,
+  ClipboardCheck,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
+import AlertModal from "../components/AlertModal";
 import { API_URL } from "../api/auth";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -99,6 +103,10 @@ export default function DashboardPage() {
   const [approvingId, setApprovingId] = useState(null);
   const [dailyReport, setDailyReport] = useState(null);
   const [loadingDaily, setLoadingDaily] = useState(false);
+  const [todayAttendance, setTodayAttendance] = useState([]);
+  const [selectedFieldEmployee, setSelectedFieldEmployee] = useState("");
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [deleteAttendanceModal, setDeleteAttendanceModal] = useState({ isOpen: false, employeeId: null, attendanceId: null });
 
   const getToken = () => localStorage.getItem("token");
 
@@ -157,6 +165,23 @@ export default function DashboardPage() {
     fetchAll();
   }, [fetchAll]);
 
+  const fetchTodayAttendance = useCallback(async () => {
+    if (currentUser?.role !== "field") return;
+    try {
+      const today = new Date().toLocaleDateString('en-CA');
+      const res = await authFetch(`${API_URL}/employees/attendance?start_date=${today}&end_date=${today}`);
+      setTodayAttendance(res);
+    } catch (e) {
+      console.error("Failed to fetch attendance:", e);
+    }
+  }, [authFetch, currentUser]);
+
+  useEffect(() => {
+    if (currentUser?.role === "field") {
+      fetchTodayAttendance();
+    }
+  }, [fetchTodayAttendance, currentUser]);
+
   // ── role ──
   const role = currentUser?.role ?? "";
   const isGM =
@@ -185,6 +210,63 @@ export default function DashboardPage() {
       setApprovingId(null);
     }
   };
+
+  // ── attendance action ──
+  const handleAttendanceAction = async (employeeId, action, attendanceId = null) => {
+    setAttendanceLoading(true);
+    try {
+      const now = new Date();
+      const todayStr = now.toLocaleDateString('en-CA');
+      const isoTime = now.toISOString();
+
+      let url, method, body;
+      if (action === 'check_in') {
+        url = `${API_URL}/employees/attendance`;
+        method = 'POST';
+        body = JSON.stringify({
+          employee_id: employeeId,
+          date: todayStr,
+          check_in: isoTime
+        });
+      } else if (action === 'check_out') {
+        url = `${API_URL}/employees/attendance/${attendanceId}`;
+        method = 'PUT';
+        body = JSON.stringify({ check_out: isoTime });
+      } else if (action === 'delete') {
+        url = `${API_URL}/employees/attendance/${attendanceId}`;
+        method = 'DELETE';
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Gagal menyimpan absensi');
+      }
+
+      if (action === 'delete') {
+         toast.success('Absensi berhasil dihapus!');
+      } else {
+         toast.success(action === 'check_in' ? 'Check In berhasil!' : 'Check Out berhasil!');
+      }
+      await fetchTodayAttendance();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const operationEmployees = useMemo(() => {
+    return employees.filter(e => e.department && e.department.toLowerCase().startsWith("operation"));
+  }, [employees]);
 
   // ── chart data ──
   const fuelChartData = useMemo(
@@ -238,6 +320,82 @@ export default function DashboardPage() {
           <RefreshCw className="w-4 h-4" />
         </button>
       </div>
+
+      {/* ── Field Staff Attendance ───────────────────────────────────────── */}
+      {role === "field" && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
+            <ClipboardCheck className="w-5 h-5 text-blue-600" />
+            Absensi Pekerja Lapangan (Operation)
+          </h2>
+          
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1 w-full">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Karyawan</label>
+              <select 
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                value={selectedFieldEmployee}
+                onChange={(e) => setSelectedFieldEmployee(e.target.value)}
+              >
+                <option value="">-- Pilih Pekerja --</option>
+                {operationEmployees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="w-full sm:w-auto">
+              {(() => {
+                 const selectedId = Number(selectedFieldEmployee);
+                 if (!selectedId) return <button disabled className="w-full sm:w-auto px-6 py-2 bg-gray-300 text-white font-medium rounded-lg transition-colors">Pilih Pekerja</button>;
+                 
+                 const currentRecord = todayAttendance.find(a => a.employee_id === selectedId);
+                 
+                 if (!currentRecord) {
+                    return (
+                      <button 
+                        onClick={() => handleAttendanceAction(selectedId, 'check_in')}
+                        disabled={attendanceLoading}
+                        className="w-full sm:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                      >
+                        {attendanceLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Check In
+                      </button>
+                    );
+                 } else {
+                    return (
+                      <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+                        {!currentRecord.check_out ? (
+                          <button 
+                            onClick={() => handleAttendanceAction(selectedId, 'check_out', currentRecord.id)}
+                            disabled={attendanceLoading}
+                            className="w-full sm:w-auto px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                          >
+                            {attendanceLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Check Out
+                          </button>
+                        ) : (
+                          <button disabled className="w-full sm:w-auto px-6 py-2 bg-green-100 text-green-700 border border-green-200 font-medium rounded-lg flex items-center justify-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Selesai Shift
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => setDeleteAttendanceModal({ isOpen: true, employeeId: selectedId, attendanceId: currentRecord.id })}
+                          disabled={attendanceLoading}
+                          className="w-full sm:w-auto p-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg flex items-center justify-center transition-colors disabled:opacity-70"
+                          title="Hapus Absensi Hari Ini"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    );
+                 }
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Core Stats ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -861,6 +1019,18 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      
+      <AlertModal
+        isOpen={deleteAttendanceModal.isOpen}
+        onClose={() => setDeleteAttendanceModal({ isOpen: false, employeeId: null, attendanceId: null })}
+        onConfirm={() => {
+          handleAttendanceAction(deleteAttendanceModal.employeeId, 'delete', deleteAttendanceModal.attendanceId);
+          setDeleteAttendanceModal({ isOpen: false, employeeId: null, attendanceId: null });
+        }}
+        title="Hapus Absensi Hari Ini"
+        message="Apakah Anda yakin ingin membatalkan/menghapus absensi pekerja lapangan ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
+      />
     </div>
   );
-}
+};

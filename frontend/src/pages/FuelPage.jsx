@@ -351,7 +351,8 @@ const FuelPage = () => {
                   <option value="">-- Pilih Alat --</option>
                   {equipment.map((eq) => (
                     <option key={eq.id} value={eq.id}>
-                      {eq.name} ({eq.type})
+                      {eq.name}
+                      {eq.brand ? ` · ${eq.brand}` : ""} · {eq.type}
                       {eq.capacity ? ` · ${eq.capacity} Ton` : ""}
                     </option>
                   ))}
@@ -364,16 +365,33 @@ const FuelPage = () => {
                     );
                     if (!selected) return null;
                     return (
-                      <div className="mt-2 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
-                        <Truck className="h-4 w-4 text-amber-500 shrink-0" />
-                        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Truck className="h-4 w-4 text-amber-500 shrink-0" />
                           <span className="font-semibold text-gray-800">
                             {selected.name}
                           </span>
-                          <span className="text-gray-500">{selected.type}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 pl-6">
+                          {selected.brand && (
+                            <span className="inline-flex items-center gap-1 text-gray-600 text-xs">
+                              <span className="font-medium text-gray-500">
+                                Merk:
+                              </span>{" "}
+                              {selected.brand}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-gray-600 text-xs">
+                            <span className="font-medium text-gray-500">
+                              Jenis:
+                            </span>{" "}
+                            {selected.type}
+                          </span>
                           {selected.capacity && (
-                            <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
-                              <span>⚖</span>
+                            <span className="inline-flex items-center gap-1 text-amber-700 text-xs font-medium">
+                              <span className="font-medium text-gray-500">
+                                Kapasitas:
+                              </span>{" "}
                               {selected.capacity} Ton
                             </span>
                           )}

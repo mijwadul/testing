@@ -622,15 +622,17 @@ def create_attendance(
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    # Field staff can only create for themselves
+    # Field staff can only create for themselves or operation department
+    is_operation = employee.department and employee.department.lower().startswith("operation")
     if (
         current_user.role == "field"
         and not current_user.is_superuser
         and employee.user_id != current_user.id
+        and not is_operation
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only create attendance for yourself",
+            detail="Can only create attendance for yourself or operation department",
         )
 
     attendance_data = attendance.model_dump(exclude_unset=True)
@@ -639,6 +641,15 @@ def create_attendance(
     # but date must always be the current access date.
     if current_user.role == "helper" and not current_user.is_superuser:
         attendance_data["date"] = date.today()
+
+    # Prevent double check-in for the same date
+    target_date = attendance_data.get("date", attendance.date)
+    existing_attendance = db.query(Attendance).filter(
+        Attendance.employee_id == attendance.employee_id,
+        Attendance.date == target_date
+    ).first()
+    if existing_attendance:
+        raise HTTPException(status_code=400, detail="Employee already checked in for this date")
 
     # Calculate work hours if check_out provided
     work_hours = 0
@@ -653,6 +664,89 @@ def create_attendance(
 
     return db_attendance
 
+
+@router.put("/attendance/{attendance_id}", response_model=AttendanceResponse)
+def update_attendance(
+    attendance_id: int,
+    attendance_update: AttendanceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Update attendance record.
+    - GM/Admin: Can edit any field
+    - Field Staff: Can only update check_out for themselves or operation department for today's record
+    """
+    attendance = db.query(Attendance).filter(Attendance.id == attendance_id).first()
+    if not attendance:
+        raise HTTPException(status_code=404, detail="Attendance not found")
+
+    is_admin = current_user.role in ["gm", "admin"] or current_user.is_admin or current_user.is_superuser
+    
+    if not is_admin:
+        if current_user.role != "field":
+            raise HTTPException(status_code=403, detail="Not enough permissions to edit attendance")
+        
+        employee = db.query(Employee).filter(Employee.id == attendance.employee_id).first()
+        is_operation = employee and employee.department and employee.department.lower().startswith("operation")
+        
+        # Field staff validation
+        if (not employee or employee.user_id != current_user.id) and not is_operation:
+             raise HTTPException(status_code=403, detail="Cannot edit this employee's attendance")
+             
+        # Can only update check_out
+        update_dict = attendance_update.model_dump(exclude_unset=True)
+        allowed_keys = ["check_out"]
+        if any(k not in allowed_keys for k in update_dict.keys()):
+             raise HTTPException(status_code=403, detail="Field staff can only update check_out time")
+             
+        if attendance.date != date.today():
+             raise HTTPException(status_code=403, detail="Field staff can only check out for today's attendance")
+
+    update_data = attendance_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(attendance, key, value)
+        
+    # Recalculate work_hours if check_in and check_out are present
+    if attendance.check_in and attendance.check_out:
+        attendance.work_hours = (attendance.check_out - attendance.check_in).total_seconds() / 3600
+
+    db.commit()
+    db.refresh(attendance)
+
+    return attendance
+
+@router.delete("/attendance/{attendance_id}")
+def delete_attendance(
+    attendance_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete attendance record.
+    - GM/Admin: Can delete any
+    - Field Staff: Can only delete today's record for operation department
+    """
+    attendance = db.query(Attendance).filter(Attendance.id == attendance_id).first()
+    if not attendance:
+        raise HTTPException(status_code=404, detail="Attendance not found")
+
+    is_admin = current_user.role in ["gm", "admin"] or current_user.is_admin or current_user.is_superuser
+    if not is_admin:
+        if current_user.role != "field":
+            raise HTTPException(status_code=403, detail="Not enough permissions to delete attendance")
+        
+        if attendance.date != date.today():
+             raise HTTPException(status_code=403, detail="Field staff can only delete today's attendance")
+             
+        employee = db.query(Employee).filter(Employee.id == attendance.employee_id).first()
+        is_operation = employee and employee.department and employee.department.lower().startswith("operation")
+        if (not employee or employee.user_id != current_user.id) and not is_operation:
+             raise HTTPException(status_code=403, detail="Cannot delete this employee's attendance")
+             
+    db.delete(attendance)
+    db.commit()
+    return {"message": "Attendance deleted successfully"}
 
 @router.get("/attendance", response_model=List[AttendanceResponse])
 def get_attendance(

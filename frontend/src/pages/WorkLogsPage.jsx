@@ -498,10 +498,47 @@ const WorkLogsPage = () => {
                   <option value="">-- Pilih Alat --</option>
                   {equipment.map((eq) => (
                     <option key={eq.id} value={eq.id}>
-                      {eq.name} ({eq.type})
+                      {eq.name}
+                      {eq.brand ? ` · ${eq.brand}` : ""} · {eq.type}
+                      {eq.capacity ? ` · ${eq.capacity} Ton` : ""}
                     </option>
                   ))}
                 </select>
+                {/* Info card unit yang dipilih */}
+                {selectedEquipment && (
+                  <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Truck className="h-4 w-4 text-blue-500 shrink-0" />
+                      <span className="font-semibold text-gray-800">
+                        {selectedEquipment.name}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 pl-6">
+                      {selectedEquipment.brand && (
+                        <span className="inline-flex items-center gap-1 text-gray-600 text-xs">
+                          <span className="font-medium text-gray-500">
+                            Merk:
+                          </span>{" "}
+                          {selectedEquipment.brand}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 text-gray-600 text-xs">
+                        <span className="font-medium text-gray-500">
+                          Jenis:
+                        </span>{" "}
+                        {selectedEquipment.type}
+                      </span>
+                      {selectedEquipment.capacity && (
+                        <span className="inline-flex items-center gap-1 text-blue-700 text-xs font-medium">
+                          <span className="font-medium text-gray-500">
+                            Kapasitas:
+                          </span>{" "}
+                          {selectedEquipment.capacity} Ton
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Tanggal Kerja */}

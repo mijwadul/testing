@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import AlertModal from "../components/AlertModal";
 
 // ─── Axios instance ────────────────────────────────────────────────────────────
 const api = axios.create({ baseURL: "/api/v1" });
@@ -134,6 +135,8 @@ const PayrollPage = () => {
 
   // ── delete ──
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, payrollId: null, employeeName: "", periodStart: "" });
+  const [approveModal, setApproveModal] = useState({ isOpen: false, payrollId: null });
 
   // ────────────────────────────────────────────────────────────────────────────
   // Fetch current user
@@ -277,11 +280,15 @@ const PayrollPage = () => {
   // ────────────────────────────────────────────────────────────────────────────
   // Approve payroll
   // ────────────────────────────────────────────────────────────────────────────
-  const handleApprove = async (payrollId) => {
-    if (!window.confirm("Approve slip gaji ini? Status akan berubah menjadi Approved dan slip gaji dapat didownload.")) return;
-    setApprovingId(payrollId);
+  const handleApproveClick = (payrollId) => {
+    setApproveModal({ isOpen: true, payrollId });
+  };
+
+  const confirmApprove = async () => {
+    if (!approveModal.payrollId) return;
+    setApprovingId(approveModal.payrollId);
     try {
-      await api.put(`/employees/payroll/${payrollId}/approve`);
+      await api.put(`/employees/payroll/${approveModal.payrollId}/approve`);
       toast.success("Payroll berhasil di-approve! Slip gaji siap didownload.");
       fetchPayrolls();
     } catch (err) {
@@ -293,22 +300,22 @@ const PayrollPage = () => {
       toast.error(msg);
     } finally {
       setApprovingId(null);
+      setApproveModal({ isOpen: false, payrollId: null });
     }
   };
 
   // ────────────────────────────────────────────────────────────────────────────
   // Delete payroll
   // ────────────────────────────────────────────────────────────────────────────
-  const handleDelete = async (payrollId, employeeName, periodStart) => {
-    if (
-      !window.confirm(
-        `Hapus slip gaji "${employeeName}" periode ${periodStart}?\n\nTindakan ini tidak dapat dibatalkan.`
-      )
-    )
-      return;
-    setDeletingId(payrollId);
+  const handleDeleteClick = (payrollId, employeeName, periodStart) => {
+    setDeleteModal({ isOpen: true, payrollId, employeeName, periodStart });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.payrollId) return;
+    setDeletingId(deleteModal.payrollId);
     try {
-      await api.delete(`/employees/payroll/${payrollId}`);
+      await api.delete(`/employees/payroll/${deleteModal.payrollId}`);
       toast.success("Slip gaji berhasil dihapus.");
       fetchPayrolls();
     } catch (err) {
@@ -319,6 +326,7 @@ const PayrollPage = () => {
       toast.error(msg);
     } finally {
       setDeletingId(null);
+      setDeleteModal({ isOpen: false, payrollId: null, employeeName: "", periodStart: "" });
     }
   };
 
@@ -629,7 +637,7 @@ const PayrollPage = () => {
                             {/* Approve (GM only, only when pending) */}
                             {isGM && rec.payment_status === "pending" && (
                               <button
-                                onClick={() => handleApprove(rec.id)}
+                                onClick={() => handleApproveClick(rec.id)}
                                 disabled={isApproving}
                                 title="Approve Payroll (ubah status menjadi Approved)"
                                 className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
@@ -646,7 +654,7 @@ const PayrollPage = () => {
                             {isGM && rec.payment_status !== "paid" && (
                               <button
                                 onClick={() =>
-                                  handleDelete(
+                                  handleDeleteClick(
                                     rec.id,
                                     rec.employee_name ?? rec.employee?.name ?? "karyawan",
                                     rec.period_start,
@@ -1126,7 +1134,7 @@ const PayrollPage = () => {
                 <button
                   onClick={() => {
                     closeDetail();
-                    handleDelete(
+                    handleDeleteClick(
                       detailData.id,
                       detailData.employee_name ?? detailData.employee?.name ?? "karyawan",
                       detailData.period_start,
@@ -1150,6 +1158,29 @@ const PayrollPage = () => {
           </div>
         </div>
       )}
+
+      {/* ─────────────────────────────────────────────────────────────────────
+          AlertModal: Hapus Payroll
+      ───────────────────────────────────────────────────────────────────── */}
+      <AlertModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, payrollId: null, employeeName: "", periodStart: "" })}
+        onConfirm={confirmDelete}
+        title="Hapus Slip Gaji"
+        message={`Hapus slip gaji "${deleteModal.employeeName}" periode ${deleteModal.periodStart}? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
+      />
+      {/* ─────────────────────────────────────────────────────────────────────
+          AlertModal: Approve Payroll
+      ───────────────────────────────────────────────────────────────────── */}
+      <AlertModal
+        isOpen={approveModal.isOpen}
+        onClose={() => setApproveModal({ isOpen: false, payrollId: null })}
+        onConfirm={confirmApprove}
+        title="Approve Slip Gaji"
+        message="Approve slip gaji ini? Status akan berubah menjadi Approved dan slip gaji dapat didownload."
+        confirmText="Approve"
+      />
     </div>
   );
 };

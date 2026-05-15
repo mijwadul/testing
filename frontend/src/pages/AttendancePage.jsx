@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, UserCheck, Users, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import AlertModal from '../components/AlertModal';
 
 const toLocalDateInput = (value) => {
   const date = value ? new Date(value) : new Date();
@@ -32,11 +33,14 @@ const AttendancePage = () => {
     status: 'present',
     check_in: '',
     check_out: '',
+    check_out: '',
     notes: ''
   });
+  const [editingId, setEditingId] = useState(null);
 
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, attendanceId: null });
   useEffect(() => {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
@@ -162,8 +166,11 @@ const AttendancePage = () => {
     };
 
     try {
-      const response = await fetch('/api/v1/employees/attendance', {
-        method: 'POST',
+      const method = editingId ? 'PUT' : 'POST';
+      const url = editingId ? `/api/v1/employees/attendance/${editingId}` : '/api/v1/employees/attendance';
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -176,21 +183,66 @@ const AttendancePage = () => {
         throw new Error(error.detail || 'Gagal menyimpan absensi');
       }
 
-      toast.success('Absensi berhasil disimpan');
-      setFormData((prev) => ({
-        ...prev,
-        status: 'present',
-        check_in: '',
-        check_out: '',
-        notes: '',
-        date: isHelper ? toLocalDateInput(new Date()) : prev.date
-      }));
+      toast.success(editingId ? 'Absensi berhasil diperbarui' : 'Absensi berhasil disimpan');
+      handleCancelEdit();
       await fetchAttendance();
     } catch (error) {
       console.error(error);
       toast.error(error.message || 'Terjadi kesalahan saat menyimpan absensi');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleEditClick = (row) => {
+    setEditingId(row.id);
+    const checkInTime = row.check_in ? new Date(row.check_in).toTimeString().slice(0, 5) : '';
+    const checkOutTime = row.check_out ? new Date(row.check_out).toTimeString().slice(0, 5) : '';
+
+    setFormData({
+      employee_id: String(row.employee_id),
+      date: row.date || toLocalDateInput(new Date()),
+      status: row.status || 'present',
+      check_in: checkInTime,
+      check_out: checkOutTime,
+      notes: row.notes || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setFormData({
+      employee_id: employees.length > 0 ? String(employees[0].id) : '',
+      date: isHelper ? toLocalDateInput(new Date()) : toLocalDateInput(new Date()),
+      status: 'present',
+      check_in: '',
+      check_out: '',
+      notes: ''
+    });
+  };
+
+  const handleDelete = (id) => {
+    setDeleteModal({ isOpen: true, attendanceId: id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.attendanceId) return;
+    try {
+      const response = await fetch(`/api/v1/employees/attendance/${deleteModal.attendanceId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Gagal menghapus absensi');
+      }
+      toast.success('Absensi berhasil dihapus');
+      setDeleteModal({ isOpen: false, attendanceId: null });
+      await fetchAttendance();
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message);
     }
   };
 
@@ -262,9 +314,16 @@ const AttendancePage = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-          <Plus className="w-5 h-5 mr-2 text-blue-600" />
-          Input Absensi
+        <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <Plus className="w-5 h-5 mr-2 text-blue-600" />
+            {editingId ? 'Edit Absensi' : 'Input Absensi'}
+          </div>
+          {editingId && (
+            <button onClick={handleCancelEdit} className="text-sm text-gray-500 hover:text-gray-700 underline">
+              Batal Edit
+            </button>
+          )}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -384,7 +443,7 @@ const AttendancePage = () => {
             disabled={submitting}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg"
           >
-            {submitting ? 'Menyimpan...' : 'Simpan Absensi'}
+            {submitting ? 'Menyimpan...' : (editingId ? 'Update Absensi' : 'Simpan Absensi')}
           </button>
         </form>
       </div>
@@ -436,6 +495,7 @@ const AttendancePage = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check-out</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jam Kerja</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catatan</th>
+                {isGMOrSuperuser && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -461,6 +521,14 @@ const AttendancePage = () => {
                     </td>
                     <td className="px-4 py-3 text-sm">{row.work_hours != null ? Number(row.work_hours).toFixed(2) : '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{row.notes || '-'}</td>
+                    {isGMOrSuperuser && (
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex items-center space-x-3">
+                          <button onClick={() => handleEditClick(row)} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
+                          <button onClick={() => handleDelete(row.id)} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -468,6 +536,15 @@ const AttendancePage = () => {
           </table>
         </div>
       </div>
+      
+      <AlertModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, attendanceId: null })}
+        onConfirm={confirmDelete}
+        title="Hapus Absensi"
+        message="Apakah Anda yakin ingin menghapus data absensi ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
+      />
     </div>
   );
 };

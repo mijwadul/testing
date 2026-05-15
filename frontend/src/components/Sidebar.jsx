@@ -151,7 +151,7 @@ const Sidebar = ({ children }) => {
           path: "/attendance",
           icon: Calendar,
           label: "Absensi Karyawan",
-          show: true,
+          show: isAdmin,
         },
         {
           path: "/payroll",
