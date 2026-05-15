@@ -1,4 +1,4 @@
-import { API_URL } from "../../api/auth";
+import { API_URL } from "../api/auth";
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, UserCheck, Users, Plus } from 'lucide-react';
 import { toast } from 'sonner';
