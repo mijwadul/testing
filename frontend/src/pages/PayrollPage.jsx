@@ -1,4 +1,4 @@
-import { API_URL } from "../../api/auth";
+import { API_URL } from "../api/auth";
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
