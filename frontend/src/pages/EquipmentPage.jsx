@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Edit, Trash2, Fuel, Eye, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
@@ -20,9 +20,13 @@ const EquipmentPage = () => {
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [fuelReport, setFuelReport] = useState([]);
   const [userRole, setUserRole] = useState("user"); // Simulasi role user
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const locationInputRef = useRef(null);
   const [brands, setBrands] = useState(() => {
     const saved = localStorage.getItem("equipmentBrands");
-    return saved ? JSON.parse(saved) : ["Caterpillar", "Komatsu", "Hitachi", "Volvo", "JCB"];
+    return saved
+      ? JSON.parse(saved)
+      : ["Caterpillar", "Komatsu", "Hitachi", "Volvo", "JCB"];
   });
   const [formData, setFormData] = useState({
     name: "",
@@ -40,6 +44,33 @@ const EquipmentPage = () => {
   useEffect(() => {
     fetchEquipment();
     fetchFuelReport();
+  }, []);
+
+  // Kumpulkan lokasi unik dari data equipment yang sudah ada
+  const locationSuggestions = useMemo(() => {
+    const locs = equipment
+      .map((e) => e.location)
+      .filter((loc) => loc && loc.trim() !== "");
+    return [...new Set(locs)].sort();
+  }, [equipment]);
+
+  // Filter saran berdasarkan input
+  const filteredLocations = locationSuggestions.filter((loc) =>
+    loc.toLowerCase().includes((formData.location || "").toLowerCase()),
+  );
+
+  // Tutup dropdown saat klik di luar
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        locationInputRef.current &&
+        !locationInputRef.current.contains(e.target)
+      ) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const fetchFuelReport = async () => {
@@ -90,7 +121,8 @@ const EquipmentPage = () => {
       // Convert empty strings to null for decimal fields to avoid 422 validation errors
       const payload = {
         ...formData,
-        capacity: formData.capacity === "" ? null : parseFloat(formData.capacity),
+        capacity:
+          formData.capacity === "" ? null : parseFloat(formData.capacity),
         rental_rate_per_hour:
           formData.rental_rate_per_hour === ""
             ? null
@@ -213,7 +245,15 @@ const EquipmentPage = () => {
     toast.success(`Merk ${brandToDelete} berhasil dihapus`);
   };
 
-  const equipmentTypes = ["Excavator (Bucket)", "Excavator (Breaker)", "Loader", "Truck", "Bulldozer", "Crane", "Forklift"];
+  const equipmentTypes = [
+    "Excavator (Bucket)",
+    "Excavator (Breaker)",
+    "Loader",
+    "Truck",
+    "Bulldozer",
+    "Crane",
+    "Forklift",
+  ];
 
   const capacityOptions = [20, 30, 40, 50];
 
@@ -353,9 +393,13 @@ const EquipmentPage = () => {
                   title="Klik untuk melihat detail"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">{item.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.brand || "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {item.brand || "-"}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">{item.type}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{item.capacity ? `${item.capacity} Ton` : "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {item.capacity ? `${item.capacity} Ton` : "-"}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {item.location}
                   </td>
@@ -533,7 +577,10 @@ const EquipmentPage = () => {
                   {brands.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {brands.map((brand) => (
-                        <div key={brand} className="inline-flex items-center bg-gray-100 rounded-full px-3 py-1 text-xs text-gray-700 border border-gray-200">
+                        <div
+                          key={brand}
+                          className="inline-flex items-center bg-gray-100 rounded-full px-3 py-1 text-xs text-gray-700 border border-gray-200"
+                        >
                           <span>{brand}</span>
                           <button
                             type="button"
@@ -591,14 +638,37 @@ const EquipmentPage = () => {
                   <label className="block text-sm font-medium text-gray-700">
                     Location
                   </label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) =>
-                      setFormData({ ...formData, location: e.target.value })
-                    }
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  />
+                  <div className="relative" ref={locationInputRef}>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => {
+                        setFormData({ ...formData, location: e.target.value });
+                        setShowLocationDropdown(true);
+                      }}
+                      onFocus={() => setShowLocationDropdown(true)}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                      placeholder="Ketik atau pilih lokasi..."
+                      autoComplete="off"
+                    />
+                    {showLocationDropdown && filteredLocations.length > 0 && (
+                      <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        {filteredLocations.map((loc) => (
+                          <li
+                            key={loc}
+                            className="px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm text-gray-700"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setFormData({ ...formData, location: loc });
+                              setShowLocationDropdown(false);
+                            }}
+                          >
+                            {loc}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
